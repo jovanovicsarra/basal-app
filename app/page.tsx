@@ -146,6 +146,69 @@ export default function Home() {
     loadTransactions()
   }
 
+  async function handleCommand(command: string) {
+    if (!selectedCompany) {
+      setMessage('Prvo izaberi firmu.')
+      return
+    }
+
+    const text = command.trim()
+    if (!text) return
+
+    const amountMatch = text.match(/\d+/)
+    const amount = amountMatch ? Number(amountMatch[0]) : 0
+
+    if (!amount || amount <= 0) {
+      setMessage('Nisam našao iznos. Primer: Spent 200 on marketing')
+      return
+    }
+
+    const lower = text.toLowerCase()
+
+    const isExpense =
+      lower.includes('spent') ||
+      lower.includes('paid') ||
+      lower.includes('expense') ||
+      lower.includes('trošak') ||
+      lower.includes('platio') ||
+      lower.includes('platili')
+
+    const type = isExpense ? 'expense' : 'income'
+    const finalAmount = isExpense ? -amount : amount
+
+    const { error } = await supabase.from('transactions').insert([
+      {
+        company_id: selectedCompany,
+        amount: finalAmount,
+        type,
+        description: text,
+        date: new Date().toISOString().slice(0, 10),
+      },
+    ])
+
+    if (error) {
+      setMessage('Greška pri AI unosu: ' + error.message)
+      return
+    }
+
+    setMessage('Command processed.')
+    loadTransactions()
+  }
+
+  async function deleteTransaction(id: string) {
+    const confirmDelete = confirm('Da li si sigurna da želiš da obrišeš?')
+    if (!confirmDelete) return
+
+    const { error } = await supabase.from('transactions').delete().eq('id', id)
+
+    if (error) {
+      setMessage('Greška pri brisanju: ' + error.message)
+      return
+    }
+
+    loadTransactions()
+  }
+
   const filteredTransactions = useMemo(() => {
     if (!selectedCompany) return []
     return transactions.filter((t) => t.company_id === selectedCompany)
@@ -158,7 +221,7 @@ export default function Home() {
   const totalIncome = useMemo(() => {
     return filteredTransactions
       .filter((t) => t.type === 'income' || t.amount > 0)
-      .reduce((sum, t) => sum + t.amount, 0)
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0)
   }, [filteredTransactions])
 
   const totalExpense = useMemo(() => {
@@ -168,145 +231,30 @@ export default function Home() {
   }, [filteredTransactions])
 
   const netResult = totalIncome - totalExpense
-  async function deleteTransaction(id: string) {
-    const confirmDelete = confirm('Da li si sigurna da želiš da obrišeš?')
-    if (!confirmDelete) return
-  
-    const { error } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', id)
-  
-    if (error) {
-      setMessage('Greška pri brisanju: ' + error.message)
-      return
-    }
-  
-    loadTransactions()
-  }
+
   return (
-    <div
-      style={{
-        padding: 24,
-        fontFamily: 'Arial, sans-serif',
-        background: '#000',
-        minHeight: '100vh',
-        color: 'white',
-      }}
-    >
+    <div style={{ padding: 24, fontFamily: 'Arial, sans-serif', background: '#000', minHeight: '100vh', color: 'white' }}>
       <h1 style={{ marginBottom: 24, fontSize: 32 }}>Basal Companies</h1>
 
       {message && (
-        <div
-          style={{
-            marginBottom: 20,
-            padding: 12,
-            border: '1px solid #222',
-            borderRadius: 10,
-            background: '#0a0a0a',
-            maxWidth: 520,
-          }}
-        >
+        <div style={{ marginBottom: 20, padding: 12, border: '1px solid #222', borderRadius: 10, background: '#0a0a0a', maxWidth: 520 }}>
           {message}
         </div>
       )}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '380px 1fr',
-          gap: 24,
-          alignItems: 'start',
-        }}
-      >
+      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 24, alignItems: 'start' }}>
         <div>
-          <div
-            style={{
-              marginBottom: 24,
-              padding: 20,
-              border: '1px solid #222',
-              borderRadius: 14,
-              background: '#0a0a0a',
-            }}
-          >
+          <div style={{ marginBottom: 24, padding: 20, border: '1px solid #222', borderRadius: 14, background: '#0a0a0a' }}>
             <h2 style={{ marginTop: 0, marginBottom: 16, fontSize: 22 }}>Add company</h2>
 
-            <input
-              placeholder="Company name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={{
-                display: 'block',
-                marginBottom: 10,
-                padding: 12,
-                width: '100%',
-                borderRadius: 8,
-                border: '1px solid #333',
-                background: '#111',
-                color: 'white',
-                outline: 'none',
-              }}
-            />
+            <input placeholder="Company name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+            <input placeholder="PIB" value={pib} onChange={(e) => setPib(e.target.value)} style={inputStyle} />
+            <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} style={inputStyle} />
 
-            <input
-              placeholder="PIB"
-              value={pib}
-              onChange={(e) => setPib(e.target.value)}
-              style={{
-                display: 'block',
-                marginBottom: 10,
-                padding: 12,
-                width: '100%',
-                borderRadius: 8,
-                border: '1px solid #333',
-                background: '#111',
-                color: 'white',
-                outline: 'none',
-              }}
-            />
-
-            <input
-              placeholder="City"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              style={{
-                display: 'block',
-                marginBottom: 14,
-                padding: 12,
-                width: '100%',
-                borderRadius: 8,
-                border: '1px solid #333',
-                background: '#111',
-                color: 'white',
-                outline: 'none',
-              }}
-            />
-
-            <button
-              onClick={addCompany}
-              style={{
-                width: '100%',
-                padding: 12,
-                cursor: 'pointer',
-                background: '#00e5ff',
-                color: '#000',
-                border: 'none',
-                borderRadius: 10,
-                fontWeight: 'bold',
-              }}
-            >
-              Add company
-            </button>
+            <button onClick={addCompany} style={buttonStyle}>Add company</button>
           </div>
 
-          <div
-            style={{
-              padding: 20,
-              border: '1px solid #222',
-              borderRadius: 14,
-              background: '#0a0a0a',
-            }}
-          >
+          <div style={{ padding: 20, border: '1px solid #222', borderRadius: 14, background: '#0a0a0a' }}>
             <h2 style={{ marginTop: 0, marginBottom: 16, fontSize: 22 }}>Companies</h2>
 
             {companies.map((c) => (
@@ -321,7 +269,6 @@ export default function Home() {
                   background: selectedCompany === c.id ? '#10161a' : '#050505',
                   color: selectedCompany === c.id ? '#00e5ff' : 'white',
                   borderRadius: 10,
-                  transition: '0.2s ease',
                 }}
               >
                 <div style={{ fontWeight: 'bold', marginBottom: 4 }}>{c.name}</div>
@@ -336,228 +283,74 @@ export default function Home() {
         <div>
           {selectedCompanyData ? (
             <>
-              <div
-                style={{
-                  marginBottom: 20,
-                  padding: 20,
-                  border: '1px solid #222',
-                  borderRadius: 14,
-                  background: '#0a0a0a',
-                }}
-              >
-                <h2 style={{ margin: 0, fontSize: 26 }}>
-                  {selectedCompanyData.name} — overview
-                </h2>
+              <div style={cardStyle}>
+                <h2 style={{ margin: 0, fontSize: 26 }}>{selectedCompanyData.name} — overview</h2>
                 <div style={{ marginTop: 8, color: '#999' }}>
                   {selectedCompanyData.city} • PIB {selectedCompanyData.pib}
                 </div>
               </div>
 
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(3, minmax(180px, 1fr))',
-                  gap: 16,
-                  marginBottom: 24,
-                }}
-              >
-                <div
-                  style={{
-                    padding: 18,
-                    border: '1px solid #222',
-                    borderRadius: 14,
-                    background: '#0a0a0a',
-                  }}
-                >
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
+                <div style={cardStyle}>
                   <div style={{ color: '#999', marginBottom: 8 }}>Total income</div>
-                  <div style={{ fontSize: 36, fontWeight: 'bold', color: '#00e676' }}>
-                    €{totalIncome}
-                  </div>
+                  <div style={{ fontSize: 36, fontWeight: 'bold', color: '#00e676' }}>€{totalIncome}</div>
                 </div>
 
-                <div
-                  style={{
-                    padding: 18,
-                    border: '1px solid #222',
-                    borderRadius: 14,
-                    background: '#0a0a0a',
-                  }}
-                >
+                <div style={cardStyle}>
                   <div style={{ color: '#999', marginBottom: 8 }}>Total expense</div>
-                  <div style={{ fontSize: 36, fontWeight: 'bold', color: '#ff5252' }}>
-                    €{totalExpense}
-                  </div>
+                  <div style={{ fontSize: 36, fontWeight: 'bold', color: '#ff5252' }}>€{totalExpense}</div>
                 </div>
 
-                <div
-                  style={{
-                    padding: 18,
-                    border: '1px solid #222',
-                    borderRadius: 14,
-                    background: '#0a0a0a',
-                  }}
-                >
+                <div style={cardStyle}>
                   <div style={{ color: '#999', marginBottom: 8 }}>Net result</div>
-                  <div
-                    style={{
-                      fontSize: 36,
-                      fontWeight: 'bold',
-                      color: netResult >= 0 ? '#00e5ff' : '#ff9800',
-                    }}
-                  >
+                  <div style={{ fontSize: 36, fontWeight: 'bold', color: netResult >= 0 ? '#00e5ff' : '#ff9800' }}>
                     €{netResult}
                   </div>
                 </div>
               </div>
 
-              <div
-                style={{
-                  marginBottom: 24,
-                  padding: 20,
-                  border: '1px solid #222',
-                  borderRadius: 14,
-                  background: '#0a0a0a',
-                  maxWidth: 520,
-                }}
-              >
-                <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 22 }}>
-                  Add transaction
-                </h3>
+              <div style={{ ...cardStyle, maxWidth: 520 }}>
+                <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 22 }}>AI Command</h3>
 
                 <input
-                  placeholder="Amount (€)"
-                  value={txAmount}
-                  onChange={(e) => setTxAmount(e.target.value)}
-                  style={{
-                    display: 'block',
-                    marginBottom: 10,
-                    padding: 12,
-                    width: '100%',
-                    borderRadius: 8,
-                    border: '1px solid #333',
-                    background: '#111',
-                    color: 'white',
-                    outline: 'none',
+                  placeholder='Try: "Spent 200 on marketing"'
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      await handleCommand(e.currentTarget.value)
+                      e.currentTarget.value = ''
+                    }
                   }}
+                  style={inputStyle}
                 />
 
-                <select
-                  value={txType}
-                  onChange={(e) => setTxType(e.target.value as 'income' | 'expense')}
-                  style={{
-                    display: 'block',
-                    marginBottom: 10,
-                    padding: 12,
-                    width: '100%',
-                    borderRadius: 8,
-                    border: '1px solid #333',
-                    background: '#111',
-                    color: 'white',
-                    outline: 'none',
-                  }}
-                >
+                <h3 style={{ marginTop: 24, marginBottom: 16, fontSize: 22 }}>Add transaction</h3>
+
+                <input placeholder="Amount (€)" value={txAmount} onChange={(e) => setTxAmount(e.target.value)} style={inputStyle} />
+
+                <select value={txType} onChange={(e) => setTxType(e.target.value as 'income' | 'expense')} style={inputStyle}>
                   <option value="income">Income</option>
                   <option value="expense">Expense</option>
                 </select>
 
-                <input
-                  placeholder="Description"
-                  value={txDescription}
-                  onChange={(e) => setTxDescription(e.target.value)}
-                  style={{
-                    display: 'block',
-                    marginBottom: 10,
-                    padding: 12,
-                    width: '100%',
-                    borderRadius: 8,
-                    border: '1px solid #333',
-                    background: '#111',
-                    color: 'white',
-                    outline: 'none',
-                  }}
-                />
+                <input placeholder="Description" value={txDescription} onChange={(e) => setTxDescription(e.target.value)} style={inputStyle} />
 
-                <input
-                  type="date"
-                  value={txDate}
-                  onChange={(e) => setTxDate(e.target.value)}
-                  style={{
-                    display: 'block',
-                    marginBottom: 14,
-                    padding: 12,
-                    width: '100%',
-                    borderRadius: 8,
-                    border: '1px solid #333',
-                    background: '#111',
-                    color: 'white',
-                    outline: 'none',
-                  }}
-                />
+                <input type="date" value={txDate} onChange={(e) => setTxDate(e.target.value)} style={inputStyle} />
 
-                <button
-                  onClick={addTransaction}
-                  style={{
-                    width: '100%',
-                    padding: 12,
-                    background: '#00e5ff',
-                    border: 'none',
-                    borderRadius: 10,
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    color: '#000',
-                  }}
-                >
-                  Add transaction
-                </button>
+                <button onClick={addTransaction} style={buttonStyle}>Add transaction</button>
               </div>
 
               <div>
                 <h3 style={{ marginBottom: 16, fontSize: 22 }}>Transactions</h3>
 
                 {filteredTransactions.length === 0 ? (
-                  <div
-                    style={{
-                      padding: 16,
-                      border: '1px solid #222',
-                      borderRadius: 12,
-                      background: '#0a0a0a',
-                      maxWidth: 520,
-                    }}
-                  >
-                    Nema transakcija za ovu firmu.
+                  <div style={{ ...cardStyle, maxWidth: 520 }}>
+                    No transactions yet. Add your first one.
                   </div>
                 ) : (
                   filteredTransactions.map((t) => (
-                    <div
-                      key={t.id}
-                      style={{
-                        marginBottom: 12,
-                        padding: 16,
-                        border: '1px solid #222',
-                        borderRadius: 12,
-                        background: '#0a0a0a',
-                        maxWidth: 560,
-                        position: 'relative',
-                      }}
-                    >
-                      <button
-                        onClick={() => deleteTransaction(t.id)}
-                        style={{
-                          position: 'absolute',
-                          top: 10,
-                          right: 10,
-                          background: '#ff3b3b',
-                          border: 'none',
-                          borderRadius: 6,
-                          padding: '4px 8px',
-                          cursor: 'pointer',
-                          color: 'white',
-                          fontSize: 12,
-                        }}
-                      >
-                        X
-                      </button>
-                  
+                    <div key={t.id} style={{ ...cardStyle, maxWidth: 560, position: 'relative' }}>
+                      <button onClick={() => deleteTransaction(t.id)} style={deleteButtonStyle}>X</button>
+
                       <div
                         style={{
                           display: 'inline-block',
@@ -573,7 +366,7 @@ export default function Home() {
                       >
                         {t.type}
                       </div>
-                  
+
                       <div>Date: {t.date}</div>
                       <div>Amount: €{t.amount}</div>
                       <div>Description: {t.description}</div>
@@ -583,15 +376,7 @@ export default function Home() {
               </div>
             </>
           ) : (
-            <div
-              style={{
-                padding: 24,
-                border: '1px solid #222',
-                borderRadius: 14,
-                background: '#0a0a0a',
-                color: '#999',
-              }}
-            >
+            <div style={{ ...cardStyle, color: '#999' }}>
               Izaberi firmu da vidiš overview i transakcije.
             </div>
           )}
@@ -600,3 +385,47 @@ export default function Home() {
     </div>
   )
 }
+
+const inputStyle = {
+  display: 'block',
+  marginBottom: 10,
+  padding: 12,
+  width: '100%',
+  borderRadius: 8,
+  border: '1px solid #333',
+  background: '#111',
+  color: 'white',
+  outline: 'none',
+} as const
+
+const buttonStyle = {
+  width: '100%',
+  padding: 12,
+  cursor: 'pointer',
+  background: '#00e5ff',
+  color: '#000',
+  border: 'none',
+  borderRadius: 10,
+  fontWeight: 'bold',
+} as const
+
+const cardStyle = {
+  marginBottom: 20,
+  padding: 20,
+  border: '1px solid #222',
+  borderRadius: 14,
+  background: '#0a0a0a',
+} as const
+
+const deleteButtonStyle = {
+  position: 'absolute',
+  top: 10,
+  right: 10,
+  background: '#ff3b3b',
+  border: 'none',
+  borderRadius: 6,
+  padding: '4px 8px',
+  cursor: 'pointer',
+  color: 'white',
+  fontSize: 12,
+} as const
