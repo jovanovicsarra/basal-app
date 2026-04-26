@@ -65,12 +65,7 @@ export default function Home() {
       return
     }
 
-    setTransactions(
-      (data || []).map((t) => ({
-        ...t,
-        amount: Number(t.amount),
-      }))
-    )
+    setTransactions((data || []).map((t) => ({ ...t, amount: Number(t.amount) })))
   }
 
   async function addCompany() {
@@ -152,47 +147,54 @@ export default function Home() {
       return
     }
 
-    const text = command.trim()
-    if (!text) return
+    const cleanCommand = command.trim()
+    if (!cleanCommand) return
 
-    const amountMatch = text.match(/\d+/)
-    const amount = amountMatch ? Number(amountMatch[0]) : 0
+    try {
+      const res = await fetch('/api/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: cleanCommand }),
+      })
 
-    if (!amount || amount <= 0) {
-      setMessage('Nisam našao iznos. Primer: Spent 200 on marketing')
-      return
+      const data = await res.json()
+
+      if (!res.ok || data.error) {
+        setMessage('AI greška: ' + (data.error || 'unknown error'))
+        return
+      }
+
+      const type = data.type === 'expense' ? 'expense' : 'income'
+      const amount = Math.abs(Number(data.amount))
+      const description = data.description || cleanCommand
+
+      if (!amount || Number.isNaN(amount)) {
+        setMessage('AI nije našao iznos.')
+        return
+      }
+
+      const finalAmount = type === 'expense' ? -amount : amount
+
+      const { error } = await supabase.from('transactions').insert([
+        {
+          company_id: selectedCompany,
+          amount: finalAmount,
+          type,
+          description,
+          date: new Date().toISOString().slice(0, 10),
+        },
+      ])
+
+      if (error) {
+        setMessage('Greška pri unosu: ' + error.message)
+        return
+      }
+
+      setMessage('AI command executed.')
+      loadTransactions()
+    } catch (err: any) {
+      setMessage('Fetch error: ' + err.message)
     }
-
-    const lower = text.toLowerCase()
-
-    const isExpense =
-      lower.includes('spent') ||
-      lower.includes('paid') ||
-      lower.includes('expense') ||
-      lower.includes('trošak') ||
-      lower.includes('platio') ||
-      lower.includes('platili')
-
-    const type = isExpense ? 'expense' : 'income'
-    const finalAmount = isExpense ? -amount : amount
-
-    const { error } = await supabase.from('transactions').insert([
-      {
-        company_id: selectedCompany,
-        amount: finalAmount,
-        type,
-        description: text,
-        date: new Date().toISOString().slice(0, 10),
-      },
-    ])
-
-    if (error) {
-      setMessage('Greška pri AI unosu: ' + error.message)
-      return
-    }
-
-    setMessage('Command processed.')
-    loadTransactions()
   }
 
   async function deleteTransaction(id: string) {
@@ -244,7 +246,7 @@ export default function Home() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 24, alignItems: 'start' }}>
         <div>
-          <div style={{ marginBottom: 24, padding: 20, border: '1px solid #222', borderRadius: 14, background: '#0a0a0a' }}>
+          <div style={cardStyle}>
             <h2 style={{ marginTop: 0, marginBottom: 16, fontSize: 22 }}>Add company</h2>
 
             <input placeholder="Company name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
@@ -254,7 +256,7 @@ export default function Home() {
             <button onClick={addCompany} style={buttonStyle}>Add company</button>
           </div>
 
-          <div style={{ padding: 20, border: '1px solid #222', borderRadius: 14, background: '#0a0a0a' }}>
+          <div style={cardStyle}>
             <h2 style={{ marginTop: 0, marginBottom: 16, fontSize: 22 }}>Companies</h2>
 
             {companies.map((c) => (
@@ -313,7 +315,7 @@ export default function Home() {
                 <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 22 }}>AI Command</h3>
 
                 <input
-                  placeholder='Try: "Spent 200 on marketing"'
+                  placeholder='Try: "Platila sam 300 za dobavljača"'
                   onKeyDown={async (e) => {
                     if (e.key === 'Enter') {
                       await handleCommand(e.currentTarget.value)
@@ -322,6 +324,10 @@ export default function Home() {
                   }}
                   style={inputStyle}
                 />
+
+                <p style={{ color: '#777', marginTop: -4, marginBottom: 22 }}>
+                  Try: “Spent 200 on marketing” or “Primili smo uplatu 1200 od klijenta”
+                </p>
 
                 <h3 style={{ marginTop: 24, marginBottom: 16, fontSize: 22 }}>Add transaction</h3>
 
