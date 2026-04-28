@@ -20,9 +20,21 @@ type Transaction = {
   category?: string | null
 }
 
+type Task = {
+  id: string
+  company_id: string | null
+  title: string
+  assigned_to?: string | null
+  due_date?: string | null
+  priority?: string | null
+  status?: string | null
+  created_at?: string | null
+}
+
 export default function Home() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
 
   const [name, setName] = useState('')
@@ -34,11 +46,17 @@ export default function Home() {
   const [txDescription, setTxDescription] = useState('')
   const [txDate, setTxDate] = useState('')
 
+  const [taskTitle, setTaskTitle] = useState('')
+  const [taskAssignedTo, setTaskAssignedTo] = useState('')
+  const [taskDueDate, setTaskDueDate] = useState('')
+  const [taskPriority, setTaskPriority] = useState<'low' | 'normal' | 'high'>('normal')
+
   const [message, setMessage] = useState('')
 
   useEffect(() => {
     loadCompanies()
     loadTransactions()
+    loadTasks()
   }, [])
 
   async function loadCompanies() {
@@ -69,54 +87,68 @@ export default function Home() {
     setTransactions((data || []).map((t) => ({ ...t, amount: Number(t.amount) })))
   }
 
+  async function loadTasks() {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      setMessage('Greška pri učitavanju taskova: ' + error.message)
+      return
+    }
+
+    setTasks(data || [])
+  }
+
   function detectCategory(lower: string) {
-    if (
-      lower.includes('marketing') ||
-      lower.includes('ads') ||
-      lower.includes('reklama') ||
-      lower.includes('instagram') ||
-      lower.includes('facebook')
-    ) return 'marketing'
-
-    if (
-      lower.includes('rent') ||
-      lower.includes('kirija') ||
-      lower.includes('zakup')
-    ) return 'rent'
-
-    if (
-      lower.includes('salary') ||
-      lower.includes('plata') ||
-      lower.includes('plate')
-    ) return 'salary'
-
-    if (
-      lower.includes('supplier') ||
-      lower.includes('dobavljač') ||
-      lower.includes('dobavljac') ||
-      lower.includes('roba')
-    ) return 'supplier'
-
-    if (
-      lower.includes('client') ||
-      lower.includes('klijent') ||
-      lower.includes('kupac')
-    ) return 'client'
-
-    if (
-      lower.includes('tax') ||
-      lower.includes('porez') ||
-      lower.includes('pdv')
-    ) return 'tax'
-
-    if (
-      lower.includes('bank') ||
-      lower.includes('banka') ||
-      lower.includes('fee') ||
-      lower.includes('provizija')
-    ) return 'bank fees'
-
+    if (lower.includes('marketing') || lower.includes('ads') || lower.includes('reklama') || lower.includes('instagram') || lower.includes('facebook')) return 'marketing'
+    if (lower.includes('rent') || lower.includes('kirija') || lower.includes('zakup')) return 'rent'
+    if (lower.includes('salary') || lower.includes('plata') || lower.includes('plate')) return 'salary'
+    if (lower.includes('supplier') || lower.includes('dobavljač') || lower.includes('dobavljac') || lower.includes('roba')) return 'supplier'
+    if (lower.includes('client') || lower.includes('klijent') || lower.includes('kupac')) return 'client'
+    if (lower.includes('tax') || lower.includes('porez') || lower.includes('pdv')) return 'tax'
+    if (lower.includes('bank') || lower.includes('banka') || lower.includes('fee') || lower.includes('provizija')) return 'bank fees'
     return 'other'
+  }
+
+  function parseTaskCommand(text: string) {
+    const lower = text.toLowerCase()
+    const words = text.trim().split(/\s+/)
+
+    let assignedTo = ''
+    if (words.length > 0) assignedTo = words[0]
+
+    let priority: 'low' | 'normal' | 'high' = 'normal'
+    if (lower.includes('high priority') || lower.includes('hitno') || lower.includes('urgent')) priority = 'high'
+    if (lower.includes('low priority') || lower.includes('nije hitno')) priority = 'low'
+
+    let dueDate = ''
+    const today = new Date()
+
+    if (lower.includes('sutra') || lower.includes('tomorrow')) {
+      const d = new Date(today)
+      d.setDate(today.getDate() + 1)
+      dueDate = d.toISOString().slice(0, 10)
+    }
+
+    if (lower.includes('petak') || lower.includes('friday')) {
+      dueDate = 'Friday'
+    }
+
+    const title = text
+      .replace(/dodaj task/gi, '')
+      .replace(/add task/gi, '')
+      .replace(/podseti/gi, '')
+      .replace(/remind/gi, '')
+      .trim()
+
+    return {
+      title: title || text,
+      assignedTo,
+      dueDate,
+      priority,
+    }
   }
 
   async function addCompany() {
@@ -195,6 +227,43 @@ export default function Home() {
     loadTransactions()
   }
 
+  async function addTask() {
+    setMessage('')
+
+    if (!selectedCompany) {
+      setMessage('Prvo izaberi firmu.')
+      return
+    }
+
+    if (!taskTitle.trim()) {
+      setMessage('Unesi naziv taska.')
+      return
+    }
+
+    const { error } = await supabase.from('tasks').insert([
+      {
+        company_id: selectedCompany,
+        title: taskTitle.trim(),
+        assigned_to: taskAssignedTo.trim() || null,
+        due_date: taskDueDate || null,
+        priority: taskPriority,
+        status: 'open',
+      },
+    ])
+
+    if (error) {
+      setMessage('Greška pri dodavanju taska: ' + error.message)
+      return
+    }
+
+    setTaskTitle('')
+    setTaskAssignedTo('')
+    setTaskDueDate('')
+    setTaskPriority('normal')
+    setMessage('Task uspešno dodat.')
+    loadTasks()
+  }
+
   async function handleCommand(command: string) {
     if (!selectedCompany) {
       setMessage('Prvo izaberi firmu.')
@@ -204,15 +273,49 @@ export default function Home() {
     const text = command.trim()
     if (!text) return
 
+    const lower = text.toLowerCase()
+
+    const looksLikeTask =
+      lower.includes('task') ||
+      lower.includes('podseti') ||
+      lower.includes('remind') ||
+      lower.includes('zadatak') ||
+      lower.includes('uradi') ||
+      lower.includes('ponuda') ||
+      lower.includes('posalji') ||
+      lower.includes('pošalji')
+
     const amountMatch = text.match(/-?\d+(\.\d+)?/)
     const amount = amountMatch ? Math.abs(Number(amountMatch[0])) : 0
 
-    if (!amount || Number.isNaN(amount)) {
-      setMessage('Nisam našao iznos. Primer: platila 300 za marketing')
+    if (looksLikeTask && !amount) {
+      const parsed = parseTaskCommand(text)
+
+      const { error } = await supabase.from('tasks').insert([
+        {
+          company_id: selectedCompany,
+          title: parsed.title,
+          assigned_to: parsed.assignedTo,
+          due_date: parsed.dueDate || null,
+          priority: parsed.priority,
+          status: 'open',
+        },
+      ])
+
+      if (error) {
+        setMessage('Greška pri unosu taska: ' + error.message)
+        return
+      }
+
+      setMessage(`Task created: ${parsed.title}`)
+      loadTasks()
       return
     }
 
-    const lower = text.toLowerCase()
+    if (!amount || Number.isNaN(amount)) {
+      setMessage('Nisam našao iznos. Primer: platila 300 za marketing ili Ana ponuda za Metalac do petka high priority')
+      return
+    }
 
     const isExpense =
       lower.includes('spent') ||
@@ -273,10 +376,45 @@ export default function Home() {
     loadTransactions()
   }
 
+  async function toggleTaskStatus(task: Task) {
+    const nextStatus = task.status === 'done' ? 'open' : 'done'
+
+    const { error } = await supabase
+      .from('tasks')
+      .update({ status: nextStatus })
+      .eq('id', task.id)
+
+    if (error) {
+      setMessage('Greška pri promeni taska: ' + error.message)
+      return
+    }
+
+    loadTasks()
+  }
+
+  async function deleteTask(id: string) {
+    const confirmDelete = confirm('Da li si sigurna da želiš da obrišeš task?')
+    if (!confirmDelete) return
+
+    const { error } = await supabase.from('tasks').delete().eq('id', id)
+
+    if (error) {
+      setMessage('Greška pri brisanju taska: ' + error.message)
+      return
+    }
+
+    loadTasks()
+  }
+
   const filteredTransactions = useMemo(() => {
     if (!selectedCompany) return []
     return transactions.filter((t) => t.company_id === selectedCompany)
   }, [transactions, selectedCompany])
+
+  const filteredTasks = useMemo(() => {
+    if (!selectedCompany) return []
+    return tasks.filter((t) => t.company_id === selectedCompany)
+  }, [tasks, selectedCompany])
 
   const selectedCompanyData = useMemo(() => {
     return companies.find((c) => c.id === selectedCompany) || null
@@ -295,6 +433,14 @@ export default function Home() {
   }, [filteredTransactions])
 
   const netResult = totalIncome - totalExpense
+
+  const openTasks = useMemo(() => {
+    return filteredTasks.filter((t) => t.status !== 'done')
+  }, [filteredTasks])
+
+  const highPriorityTasks = useMemo(() => {
+    return filteredTasks.filter((t) => t.priority === 'high' && t.status !== 'done')
+  }, [filteredTasks])
 
   const expenseTransactions = useMemo(() => {
     return filteredTransactions.filter((t) => t.type === 'expense' || t.amount < 0)
@@ -338,16 +484,32 @@ export default function Home() {
       items.push('Expenses are above 80% of income. Margin pressure is high.')
     }
 
-    if (items.length === 0 && filteredTransactions.length > 0) {
+    if (highPriorityTasks.length > 0) {
+      items.push(`${highPriorityTasks.length} high priority task(s) are still open.`)
+    }
+
+    if (items.length === 0 && (filteredTransactions.length > 0 || filteredTasks.length > 0)) {
       items.push('No critical warning detected. Company looks stable based on current data.')
     }
 
     return items
-  }, [netResult, categoryTotals, totalExpense, totalIncome, filteredTransactions.length])
+  }, [netResult, categoryTotals, totalExpense, totalIncome, filteredTransactions.length, filteredTasks.length, highPriorityTasks.length])
 
   const recentActivity = useMemo(() => {
-    return filteredTransactions.slice(0, 5)
-  }, [filteredTransactions])
+    const transactionEvents = filteredTransactions.slice(0, 5).map((t) => ({
+      id: `tx-${t.id}`,
+      label: `${t.type === 'expense' || t.amount < 0 ? 'Expense' : 'Income'} €${Math.abs(t.amount)}`,
+      meta: `${t.date} • ${t.category || 'other'} • ${t.description}`,
+    }))
+
+    const taskEvents = filteredTasks.slice(0, 5).map((t) => ({
+      id: `task-${t.id}`,
+      label: `Task ${t.status === 'done' ? 'completed' : 'created'}: ${t.title}`,
+      meta: `${t.assigned_to || 'Unassigned'} • ${t.priority || 'normal'} priority • ${t.due_date || 'no due date'}`,
+    }))
+
+    return [...transactionEvents, ...taskEvents].slice(0, 8)
+  }, [filteredTransactions, filteredTasks])
 
   return (
     <div style={{ padding: 24, fontFamily: 'Arial, sans-serif', background: '#000', minHeight: '100vh', color: 'white' }}>
@@ -407,55 +569,90 @@ export default function Home() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
-                <div style={cardStyle}>
-                  <div style={{ color: '#999', marginBottom: 8 }}>Total income</div>
-                  <div style={{ fontSize: 36, fontWeight: 'bold', color: '#00e676' }}>€{totalIncome}</div>
-                </div>
-
-                <div style={cardStyle}>
-                  <div style={{ color: '#999', marginBottom: 8 }}>Total expense</div>
-                  <div style={{ fontSize: 36, fontWeight: 'bold', color: '#ff5252' }}>€{totalExpense}</div>
-                </div>
-
-                <div style={cardStyle}>
-                  <div style={{ color: '#999', marginBottom: 8 }}>Net result</div>
-                  <div style={{ fontSize: 36, fontWeight: 'bold', color: netResult >= 0 ? '#00e5ff' : '#ff9800' }}>
-                    €{netResult}
-                  </div>
-                </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(150px, 1fr))', gap: 16, marginBottom: 24 }}>
+                <MetricCard title="Total income" value={`€${totalIncome}`} color="#00e676" />
+                <MetricCard title="Total expense" value={`€${totalExpense}`} color="#ff5252" />
+                <MetricCard title="Net result" value={`€${netResult}`} color={netResult >= 0 ? '#00e5ff' : '#ff9800'} />
+                <MetricCard title="Open tasks" value={`${openTasks.length}`} color="#ffffff" />
               </div>
 
-              <div style={{ ...cardStyle, maxWidth: 680 }}>
+              <div style={{ ...cardStyle, maxWidth: 760 }}>
+                <h3 style={{ marginTop: 0, marginBottom: 16 }}>Command center</h3>
+
+                <input
+                  placeholder='Try: "platila 300 za marketing" or "Ana ponuda za Metalac do petka high priority"'
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      await handleCommand(e.currentTarget.value)
+                      e.currentTarget.value = ''
+                    }
+                  }}
+                  style={inputStyle}
+                />
+
+                <p style={{ color: '#777', marginTop: -4, marginBottom: 0 }}>
+                  One input for finance and operations.
+                </p>
+              </div>
+
+              <div style={{ ...cardStyle, maxWidth: 760 }}>
                 <h3 style={{ marginTop: 0, marginBottom: 16 }}>Basal warnings</h3>
 
                 {warnings.map((warning, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      marginBottom: 10,
-                      padding: 12,
-                      borderRadius: 10,
-                      border: '1px solid #332600',
-                      background: '#151000',
-                      color: '#ffcc66',
-                    }}
-                  >
+                  <div key={index} style={warningStyle}>
                     ⚠️ {warning}
                   </div>
                 ))}
               </div>
 
-              <div style={{ ...cardStyle, maxWidth: 680 }}>
+              <div style={{ ...cardStyle, maxWidth: 760 }}>
+                <h3 style={{ marginTop: 0, marginBottom: 16 }}>Tasks</h3>
+
+                <input placeholder="Task title" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} style={inputStyle} />
+                <input placeholder="Assigned to" value={taskAssignedTo} onChange={(e) => setTaskAssignedTo(e.target.value)} style={inputStyle} />
+                <input type="date" value={taskDueDate} onChange={(e) => setTaskDueDate(e.target.value)} style={inputStyle} />
+
+                <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value as 'low' | 'normal' | 'high')} style={inputStyle}>
+                  <option value="low">Low priority</option>
+                  <option value="normal">Normal priority</option>
+                  <option value="high">High priority</option>
+                </select>
+
+                <button onClick={addTask} style={buttonStyle}>Add task</button>
+
+                <div style={{ marginTop: 18 }}>
+                  {filteredTasks.length === 0 ? (
+                    <div style={{ color: '#777' }}>No tasks yet.</div>
+                  ) : (
+                    filteredTasks.map((task) => (
+                      <div key={task.id} style={taskStyle}>
+                        <button onClick={() => deleteTask(task.id)} style={smallDeleteButtonStyle}>X</button>
+
+                        <div style={{ fontWeight: 'bold', textDecoration: task.status === 'done' ? 'line-through' : 'none' }}>
+                          {task.title}
+                        </div>
+
+                        <div style={{ color: '#999', fontSize: 14, marginTop: 4 }}>
+                          {task.assigned_to || 'Unassigned'} • {task.due_date || 'No due date'} • {task.priority || 'normal'} priority • {task.status || 'open'}
+                        </div>
+
+                        <button onClick={() => toggleTaskStatus(task)} style={secondaryButtonStyle}>
+                          {task.status === 'done' ? 'Reopen' : 'Mark done'}
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div style={{ ...cardStyle, maxWidth: 760 }}>
                 <h3 style={{ marginTop: 0, marginBottom: 16 }}>Spending by category</h3>
 
                 {categoryTotals.length === 0 ? (
                   <div style={{ color: '#777' }}>No expense data yet.</div>
                 ) : (
                   categoryTotals.map((c) => {
-                    const percent = totalExpense > 0
-                      ? Math.round((c.total / totalExpense) * 100)
-                      : 0
+                    const percent = totalExpense > 0 ? Math.round((c.total / totalExpense) * 100) : 0
 
                     return (
                       <div key={c.category} style={{ marginBottom: 12 }}>
@@ -473,44 +670,23 @@ export default function Home() {
                 )}
               </div>
 
-              <div style={{ ...cardStyle, maxWidth: 680 }}>
-                <h3 style={{ marginTop: 0, marginBottom: 16 }}>Recent activity</h3>
+              <div style={{ ...cardStyle, maxWidth: 760 }}>
+                <h3 style={{ marginTop: 0, marginBottom: 16 }}>Company timeline</h3>
 
                 {recentActivity.length === 0 ? (
                   <div style={{ color: '#777' }}>No activity yet.</div>
                 ) : (
-                  recentActivity.map((t) => (
-                    <div key={t.id} style={{ padding: '10px 0', borderBottom: '1px solid #1f1f1f' }}>
-                      <div style={{ fontWeight: 'bold' }}>
-                        {t.type === 'expense' || t.amount < 0 ? 'Expense' : 'Income'} €{Math.abs(t.amount)}
-                      </div>
-                      <div style={{ color: '#999', fontSize: 14 }}>
-                        {t.date} • {t.category || 'other'} • {t.description}
-                      </div>
+                  recentActivity.map((item) => (
+                    <div key={item.id} style={{ padding: '10px 0', borderBottom: '1px solid #1f1f1f' }}>
+                      <div style={{ fontWeight: 'bold' }}>{item.label}</div>
+                      <div style={{ color: '#999', fontSize: 14 }}>{item.meta}</div>
                     </div>
                   ))
                 )}
               </div>
 
               <div style={{ ...cardStyle, maxWidth: 520 }}>
-                <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 22 }}>AI Command</h3>
-
-                <input
-                  placeholder='Try: "platila 300 za marketing"'
-                  onKeyDown={async (e) => {
-                    if (e.key === 'Enter') {
-                      await handleCommand(e.currentTarget.value)
-                      e.currentTarget.value = ''
-                    }
-                  }}
-                  style={inputStyle}
-                />
-
-                <p style={{ color: '#777', marginTop: -4, marginBottom: 22 }}>
-                  Try: “Spent 200 on marketing” or “Primili smo uplatu 1200 od klijenta”
-                </p>
-
-                <h3 style={{ marginTop: 24, marginBottom: 16, fontSize: 22 }}>Add transaction</h3>
+                <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 22 }}>Add transaction manually</h3>
 
                 <input placeholder="Amount (€)" value={txAmount} onChange={(e) => setTxAmount(e.target.value)} style={inputStyle} />
 
@@ -565,11 +741,20 @@ export default function Home() {
             </>
           ) : (
             <div style={{ ...cardStyle, color: '#999' }}>
-              Izaberi firmu da vidiš overview i transakcije.
+              Izaberi firmu da vidiš overview, taskove i transakcije.
             </div>
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function MetricCard({ title, value, color }: { title: string; value: string; color: string }) {
+  return (
+    <div style={cardStyle}>
+      <div style={{ color: '#999', marginBottom: 8 }}>{title}</div>
+      <div style={{ fontSize: 34, fontWeight: 'bold', color }}>{value}</div>
     </div>
   )
 }
@@ -597,12 +782,40 @@ const buttonStyle = {
   fontWeight: 'bold',
 } as const
 
+const secondaryButtonStyle = {
+  marginTop: 10,
+  padding: '7px 10px',
+  cursor: 'pointer',
+  background: '#111',
+  color: 'white',
+  border: '1px solid #333',
+  borderRadius: 8,
+} as const
+
 const cardStyle = {
   marginBottom: 20,
   padding: 20,
   border: '1px solid #222',
   borderRadius: 14,
   background: '#0a0a0a',
+} as const
+
+const warningStyle = {
+  marginBottom: 10,
+  padding: 12,
+  borderRadius: 10,
+  border: '1px solid #332600',
+  background: '#151000',
+  color: '#ffcc66',
+} as const
+
+const taskStyle = {
+  position: 'relative',
+  padding: 14,
+  marginBottom: 10,
+  border: '1px solid #222',
+  borderRadius: 12,
+  background: '#050505',
 } as const
 
 const deleteButtonStyle = {
@@ -616,4 +829,17 @@ const deleteButtonStyle = {
   cursor: 'pointer',
   color: 'white',
   fontSize: 12,
+} as const
+
+const smallDeleteButtonStyle = {
+  position: 'absolute',
+  top: 10,
+  right: 10,
+  background: '#ff3b3b',
+  border: 'none',
+  borderRadius: 6,
+  padding: '3px 7px',
+  cursor: 'pointer',
+  color: 'white',
+  fontSize: 11,
 } as const
