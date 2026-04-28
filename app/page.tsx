@@ -103,6 +103,19 @@ export default function Home() {
       lower.includes('kupac')
     ) return 'client'
 
+    if (
+      lower.includes('tax') ||
+      lower.includes('porez') ||
+      lower.includes('pdv')
+    ) return 'tax'
+
+    if (
+      lower.includes('bank') ||
+      lower.includes('banka') ||
+      lower.includes('fee') ||
+      lower.includes('provizija')
+    ) return 'bank fees'
+
     return 'other'
   }
 
@@ -178,7 +191,7 @@ export default function Home() {
     setTxDescription('')
     setTxDate('')
     setTxType('income')
-    setMessage('Transakcija uspešno dodata.')
+    setMessage(`Dodato: ${txType} €${numericAmount} / ${category}`)
     loadTransactions()
   }
 
@@ -283,10 +296,14 @@ export default function Home() {
 
   const netResult = totalIncome - totalExpense
 
+  const expenseTransactions = useMemo(() => {
+    return filteredTransactions.filter((t) => t.type === 'expense' || t.amount < 0)
+  }, [filteredTransactions])
+
   const categoryTotals = useMemo(() => {
     const map: Record<string, number> = {}
 
-    filteredTransactions.forEach((t) => {
+    expenseTransactions.forEach((t) => {
       const cat = t.category || 'other'
       if (!map[cat]) map[cat] = 0
       map[cat] += Math.abs(t.amount)
@@ -295,6 +312,41 @@ export default function Home() {
     return Object.entries(map)
       .map(([category, total]) => ({ category, total }))
       .sort((a, b) => b.total - a.total)
+  }, [expenseTransactions])
+
+  const warnings = useMemo(() => {
+    const items: string[] = []
+
+    if (netResult < 0) {
+      items.push(`Net result is negative: €${netResult}. Company is currently losing money.`)
+    }
+
+    const topCategory = categoryTotals[0]
+    if (topCategory && totalExpense > 0) {
+      const percent = Math.round((topCategory.total / totalExpense) * 100)
+
+      if (percent >= 50) {
+        items.push(`${topCategory.category} represents ${percent}% of spending. This cost area needs review.`)
+      }
+
+      if (topCategory.category === 'other' && percent >= 30) {
+        items.push(`Too much spending is uncategorized. Add clearer descriptions to improve analysis.`)
+      }
+    }
+
+    if (totalIncome > 0 && totalExpense / totalIncome > 0.8) {
+      items.push('Expenses are above 80% of income. Margin pressure is high.')
+    }
+
+    if (items.length === 0 && filteredTransactions.length > 0) {
+      items.push('No critical warning detected. Company looks stable based on current data.')
+    }
+
+    return items
+  }, [netResult, categoryTotals, totalExpense, totalIncome, filteredTransactions.length])
+
+  const recentActivity = useMemo(() => {
+    return filteredTransactions.slice(0, 5)
   }, [filteredTransactions])
 
   return (
@@ -302,7 +354,7 @@ export default function Home() {
       <h1 style={{ marginBottom: 24, fontSize: 32 }}>Basal Companies</h1>
 
       {message && (
-        <div style={{ marginBottom: 20, padding: 12, border: '1px solid #222', borderRadius: 10, background: '#0a0a0a', maxWidth: 520 }}>
+        <div style={{ marginBottom: 20, padding: 12, border: '1px solid #222', borderRadius: 10, background: '#0a0a0a', maxWidth: 620 }}>
           {message}
         </div>
       )}
@@ -374,15 +426,35 @@ export default function Home() {
                 </div>
               </div>
 
-              <div style={{ ...cardStyle, maxWidth: 560 }}>
-                <h3 style={{ marginBottom: 16 }}>Spending by category</h3>
+              <div style={{ ...cardStyle, maxWidth: 680 }}>
+                <h3 style={{ marginTop: 0, marginBottom: 16 }}>Basal warnings</h3>
+
+                {warnings.map((warning, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      marginBottom: 10,
+                      padding: 12,
+                      borderRadius: 10,
+                      border: '1px solid #332600',
+                      background: '#151000',
+                      color: '#ffcc66',
+                    }}
+                  >
+                    ⚠️ {warning}
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ ...cardStyle, maxWidth: 680 }}>
+                <h3 style={{ marginTop: 0, marginBottom: 16 }}>Spending by category</h3>
 
                 {categoryTotals.length === 0 ? (
-                  <div style={{ color: '#777' }}>No data yet.</div>
+                  <div style={{ color: '#777' }}>No expense data yet.</div>
                 ) : (
                   categoryTotals.map((c) => {
                     const percent = totalExpense > 0
-                      ? Number(((c.total / totalExpense) * 100).toFixed(0))
+                      ? Math.round((c.total / totalExpense) * 100)
                       : 0
 
                     return (
@@ -392,22 +464,31 @@ export default function Home() {
                           <span>€{c.total} ({percent}%)</span>
                         </div>
 
-                        <div style={{
-                          height: 6,
-                          background: '#222',
-                          borderRadius: 6,
-                          overflow: 'hidden',
-                          marginTop: 4
-                        }}>
-                          <div style={{
-                            width: `${percent}%`,
-                            height: '100%',
-                            background: '#00e5ff'
-                          }} />
+                        <div style={{ height: 6, background: '#222', borderRadius: 6, overflow: 'hidden', marginTop: 4 }}>
+                          <div style={{ width: `${percent}%`, height: '100%', background: '#00e5ff' }} />
                         </div>
                       </div>
                     )
                   })
+                )}
+              </div>
+
+              <div style={{ ...cardStyle, maxWidth: 680 }}>
+                <h3 style={{ marginTop: 0, marginBottom: 16 }}>Recent activity</h3>
+
+                {recentActivity.length === 0 ? (
+                  <div style={{ color: '#777' }}>No activity yet.</div>
+                ) : (
+                  recentActivity.map((t) => (
+                    <div key={t.id} style={{ padding: '10px 0', borderBottom: '1px solid #1f1f1f' }}>
+                      <div style={{ fontWeight: 'bold' }}>
+                        {t.type === 'expense' || t.amount < 0 ? 'Expense' : 'Income'} €{Math.abs(t.amount)}
+                      </div>
+                      <div style={{ color: '#999', fontSize: 14 }}>
+                        {t.date} • {t.category || 'other'} • {t.description}
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
 
