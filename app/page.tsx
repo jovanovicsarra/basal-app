@@ -69,6 +69,43 @@ export default function Home() {
     setTransactions((data || []).map((t) => ({ ...t, amount: Number(t.amount) })))
   }
 
+  function detectCategory(lower: string) {
+    if (
+      lower.includes('marketing') ||
+      lower.includes('ads') ||
+      lower.includes('reklama') ||
+      lower.includes('instagram') ||
+      lower.includes('facebook')
+    ) return 'marketing'
+
+    if (
+      lower.includes('rent') ||
+      lower.includes('kirija') ||
+      lower.includes('zakup')
+    ) return 'rent'
+
+    if (
+      lower.includes('salary') ||
+      lower.includes('plata') ||
+      lower.includes('plate')
+    ) return 'salary'
+
+    if (
+      lower.includes('supplier') ||
+      lower.includes('dobavljač') ||
+      lower.includes('dobavljac') ||
+      lower.includes('roba')
+    ) return 'supplier'
+
+    if (
+      lower.includes('client') ||
+      lower.includes('klijent') ||
+      lower.includes('kupac')
+    ) return 'client'
+
+    return 'other'
+  }
+
   async function addCompany() {
     setMessage('')
 
@@ -118,8 +155,7 @@ export default function Home() {
     }
 
     const lower = txDescription.toLowerCase()
-    let category = detectCategory(lower)
-
+    const category = detectCategory(lower)
     const finalAmount = txType === 'expense' ? -numericAmount : numericAmount
 
     const { error } = await supabase.from('transactions').insert([
@@ -144,53 +180,6 @@ export default function Home() {
     setTxType('income')
     setMessage('Transakcija uspešno dodata.')
     loadTransactions()
-  }
-
-  function detectCategory(lower: string) {
-    if (
-      lower.includes('marketing') ||
-      lower.includes('ads') ||
-      lower.includes('reklama') ||
-      lower.includes('instagram') ||
-      lower.includes('facebook')
-    ) {
-      return 'marketing'
-    }
-
-    if (
-      lower.includes('rent') ||
-      lower.includes('kirija') ||
-      lower.includes('zakup')
-    ) {
-      return 'rent'
-    }
-
-    if (
-      lower.includes('salary') ||
-      lower.includes('plata') ||
-      lower.includes('plate')
-    ) {
-      return 'salary'
-    }
-
-    if (
-      lower.includes('supplier') ||
-      lower.includes('dobavljač') ||
-      lower.includes('dobavljac') ||
-      lower.includes('roba')
-    ) {
-      return 'supplier'
-    }
-
-    if (
-      lower.includes('client') ||
-      lower.includes('klijent') ||
-      lower.includes('kupac')
-    ) {
-      return 'client'
-    }
-
-    return 'other'
   }
 
   async function handleCommand(command: string) {
@@ -294,6 +283,20 @@ export default function Home() {
 
   const netResult = totalIncome - totalExpense
 
+  const categoryTotals = useMemo(() => {
+    const map: Record<string, number> = {}
+
+    filteredTransactions.forEach((t) => {
+      const cat = t.category || 'other'
+      if (!map[cat]) map[cat] = 0
+      map[cat] += Math.abs(t.amount)
+    })
+
+    return Object.entries(map)
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => b.total - a.total)
+  }, [filteredTransactions])
+
   return (
     <div style={{ padding: 24, fontFamily: 'Arial, sans-serif', background: '#000', minHeight: '100vh', color: 'white' }}>
       <h1 style={{ marginBottom: 24, fontSize: 32 }}>Basal Companies</h1>
@@ -369,6 +372,43 @@ export default function Home() {
                     €{netResult}
                   </div>
                 </div>
+              </div>
+
+              <div style={{ ...cardStyle, maxWidth: 560 }}>
+                <h3 style={{ marginBottom: 16 }}>Spending by category</h3>
+
+                {categoryTotals.length === 0 ? (
+                  <div style={{ color: '#777' }}>No data yet.</div>
+                ) : (
+                  categoryTotals.map((c) => {
+                    const percent = totalExpense > 0
+                      ? Number(((c.total / totalExpense) * 100).toFixed(0))
+                      : 0
+
+                    return (
+                      <div key={c.category} style={{ marginBottom: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>{c.category}</span>
+                          <span>€{c.total} ({percent}%)</span>
+                        </div>
+
+                        <div style={{
+                          height: 6,
+                          background: '#222',
+                          borderRadius: 6,
+                          overflow: 'hidden',
+                          marginTop: 4
+                        }}>
+                          <div style={{
+                            width: `${percent}%`,
+                            height: '100%',
+                            background: '#00e5ff'
+                          }} />
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
               </div>
 
               <div style={{ ...cardStyle, maxWidth: 520 }}>
