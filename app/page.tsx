@@ -17,6 +17,7 @@ type Transaction = {
   type: string
   description: string
   company_id: string | null
+  category?: string | null
 }
 
 export default function Home() {
@@ -116,6 +117,9 @@ export default function Home() {
       return
     }
 
+    const lower = txDescription.toLowerCase()
+    let category = detectCategory(lower)
+
     const finalAmount = txType === 'expense' ? -numericAmount : numericAmount
 
     const { error } = await supabase.from('transactions').insert([
@@ -123,6 +127,7 @@ export default function Home() {
         amount: finalAmount,
         type: txType,
         description: txDescription.trim(),
+        category,
         date: txDate,
         company_id: selectedCompany,
       },
@@ -141,60 +146,115 @@ export default function Home() {
     loadTransactions()
   }
 
+  function detectCategory(lower: string) {
+    if (
+      lower.includes('marketing') ||
+      lower.includes('ads') ||
+      lower.includes('reklama') ||
+      lower.includes('instagram') ||
+      lower.includes('facebook')
+    ) {
+      return 'marketing'
+    }
+
+    if (
+      lower.includes('rent') ||
+      lower.includes('kirija') ||
+      lower.includes('zakup')
+    ) {
+      return 'rent'
+    }
+
+    if (
+      lower.includes('salary') ||
+      lower.includes('plata') ||
+      lower.includes('plate')
+    ) {
+      return 'salary'
+    }
+
+    if (
+      lower.includes('supplier') ||
+      lower.includes('dobavljač') ||
+      lower.includes('dobavljac') ||
+      lower.includes('roba')
+    ) {
+      return 'supplier'
+    }
+
+    if (
+      lower.includes('client') ||
+      lower.includes('klijent') ||
+      lower.includes('kupac')
+    ) {
+      return 'client'
+    }
+
+    return 'other'
+  }
+
   async function handleCommand(command: string) {
     if (!selectedCompany) {
       setMessage('Prvo izaberi firmu.')
       return
     }
 
-    const cleanCommand = command.trim()
-    if (!cleanCommand) return
+    const text = command.trim()
+    if (!text) return
 
-    try {
-      const res = await fetch('/api/command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: cleanCommand }),
-      })
+    const amountMatch = text.match(/-?\d+(\.\d+)?/)
+    const amount = amountMatch ? Math.abs(Number(amountMatch[0])) : 0
 
-      const data = await res.json()
-
-      if (!res.ok || data.error) {
-        setMessage('AI greška: ' + (data.error || 'unknown error'))
-        return
-      }
-
-      const type = data.type === 'expense' ? 'expense' : 'income'
-      const amount = Math.abs(Number(data.amount))
-      const description = data.description || cleanCommand
-
-      if (!amount || Number.isNaN(amount)) {
-        setMessage('AI nije našao iznos.')
-        return
-      }
-
-      const finalAmount = type === 'expense' ? -amount : amount
-
-      const { error } = await supabase.from('transactions').insert([
-        {
-          company_id: selectedCompany,
-          amount: finalAmount,
-          type,
-          description,
-          date: new Date().toISOString().slice(0, 10),
-        },
-      ])
-
-      if (error) {
-        setMessage('Greška pri unosu: ' + error.message)
-        return
-      }
-
-      setMessage('AI command executed.')
-      loadTransactions()
-    } catch (err: any) {
-      setMessage('Fetch error: ' + err.message)
+    if (!amount || Number.isNaN(amount)) {
+      setMessage('Nisam našao iznos. Primer: platila 300 za marketing')
+      return
     }
+
+    const lower = text.toLowerCase()
+
+    const isExpense =
+      lower.includes('spent') ||
+      lower.includes('paid') ||
+      lower.includes('expense') ||
+      lower.includes('trošak') ||
+      lower.includes('trosak') ||
+      lower.includes('platio') ||
+      lower.includes('platila') ||
+      lower.includes('kupila') ||
+      lower.includes('kupili') ||
+      lower.includes('rashod')
+
+    const isIncome =
+      lower.includes('received') ||
+      lower.includes('income') ||
+      lower.includes('revenue') ||
+      lower.includes('uplata') ||
+      lower.includes('primili') ||
+      lower.includes('zaradili') ||
+      lower.includes('prihod')
+
+    const type = isExpense ? 'expense' : isIncome ? 'income' : 'income'
+    const finalAmount = type === 'expense' ? -amount : amount
+    const category = detectCategory(lower)
+
+    const { error } = await supabase.from('transactions').insert([
+      {
+        company_id: selectedCompany,
+        amount: finalAmount,
+        type,
+        description: text,
+        category,
+        date: new Date().toISOString().slice(0, 10),
+      },
+    ])
+
+    if (error) {
+      setMessage('Greška pri unosu: ' + error.message)
+      return
+    }
+
+    setMessage(`Dodato: ${type} €${amount} / ${category}`)
+    loadTransactions()
   }
 
   async function deleteTransaction(id: string) {
@@ -315,7 +375,7 @@ export default function Home() {
                 <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 22 }}>AI Command</h3>
 
                 <input
-                  placeholder='Try: "Platila sam 300 za dobavljača"'
+                  placeholder='Try: "platila 300 za marketing"'
                   onKeyDown={async (e) => {
                     if (e.key === 'Enter') {
                       await handleCommand(e.currentTarget.value)
@@ -376,6 +436,7 @@ export default function Home() {
                       <div>Date: {t.date}</div>
                       <div>Amount: €{t.amount}</div>
                       <div>Description: {t.description}</div>
+                      <div>Category: {t.category || 'other'}</div>
                     </div>
                   ))
                 )}
