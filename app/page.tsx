@@ -1,6 +1,3 @@
-Sara, paste this as full `app/page.tsx`:
-
-```tsx
 'use client'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
@@ -1174,4 +1171,3 @@ const chatHistoryStyle = { display: 'flex', flexDirection: 'column', gap: 10, mi
 const userBubbleStyle = { alignSelf: 'flex-end', maxWidth: 720, padding: 14, borderRadius: 16, background: '#10161a', border: '1px solid #183b42', color: 'white' } as const
 const systemResponseStyle = { alignSelf: 'flex-start', maxWidth: 760, padding: 14, borderRadius: 16, background: '#0d0d0d', border: '1px solid #222', color: '#e8e8e8' } as const
 const stepStyle = { color: '#9cf6ff', fontSize: 14, marginTop: 4 } as const
-```
