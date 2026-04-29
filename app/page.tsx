@@ -724,142 +724,178 @@ export default function Home() {
 
   function CommandCenter() {
     const quickQuestions = [
-      'What is the biggest risk today?',
-      'Who is late?',
-      'Can we afford a €20,000 purchase?',
-      'Which client should we follow up with?',
-      'What changed today?',
+      'Why is net negative?',
+      'Reduce expenses',
+      'Show biggest costs',
+      'Cash flow forecast',
+      'Who didn’t pay?',
     ]
-
+  
     return (
       <>
-        <HeaderMetrics />
-
-        <Panel title="State of the Company">
-          <div style={stateGridStyle}>
-            <div>
-              <div style={muted}>Financial state</div>
-              <div style={stateBigTextStyle}>{netResult >= 0 ? 'Stable / positive' : 'Negative pressure'}</div>
-            </div>
-            <div>
-              <div style={muted}>Net result</div>
-              <div style={{ ...stateBigTextStyle, color: netResult >= 0 ? '#00e5ff' : '#ff9800' }}>€{netResult}</div>
-            </div>
-            <div>
-              <div style={muted}>Biggest risk</div>
-              <div style={stateBigTextStyle}>{biggestRisk}</div>
-            </div>
-            <div>
-              <div style={muted}>Urgent tasks</div>
-              <div style={stateBigTextStyle}>{highPriorityTasks.length}</div>
-            </div>
-            <div>
-              <div style={muted}>Unpaid invoices</div>
-              <div style={stateBigTextStyle}>€{pendingInvoiceTotal}</div>
-            </div>
-            <div>
-              <div style={muted}>Operational bottleneck</div>
-              <div style={stateBigTextStyle}>{operationalBottleneck}</div>
-            </div>
+        {/* TOP BAR */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginBottom: 20,
+          alignItems: 'center'
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 18 }}>
+            {selectedCompanyData?.name}
           </div>
-        </Panel>
-
-        <div style={chatShellStyle}>
-          <div style={assistantBubbleStyle}>
-            <b>BASAL</b>
-            <p style={{ marginBottom: 0 }}>
-              I am the operating layer for {selectedCompanyData?.name}. Send expenses, tasks, orders, notes, document summaries, screenshots or voice-style instructions. I will route them through Finance, Operations, People, Growth and Knowledge.
-            </p>
-          </div>
-
-          <div style={uploadRowStyle}>
-            <button onClick={() => setMessage('Upload placeholder ready: later this will accept invoices, PDFs and documents.')} style={ghostButtonStyle}>＋ Document</button>
-            <button onClick={() => setMessage('Screenshot placeholder ready: later BASAL will read operational screenshots.')} style={ghostButtonStyle}>▧ Screenshot</button>
-            <button onClick={() => setMessage('Voice placeholder ready: later BASAL will use voice-to-action.')} style={ghostButtonStyle}>● Voice note</button>
-          </div>
-
-          <div style={chipsRowStyle}>
-            {quickQuestions.map(q => (
-              <button key={q} onClick={() => answerQuickQuestion(q)} style={chipStyle}>
-                {q}
-              </button>
-            ))}
-          </div>
-
-          {warnings.map((w, i) => {
-            const detail = explainWarning(w)
-            return (
-              <div key={i} style={activeWarningStyle}>
-                <div style={{ fontWeight: 800, marginBottom: 8 }}>⚠️ {detail.what}</div>
-                <div style={warningGridStyle}>
-                  <div><b>Why:</b> {detail.why}</div>
-                  <div><b>Impact:</b> {detail.impact}</div>
-                  <div><b>Recommended action:</b> {detail.action}</div>
-                </div>
-                <div style={actionRowStyle}>
-                  <button style={miniActionButtonStyle} onClick={() => answerQuickQuestion('What is the biggest risk today?')}>Analyze</button>
-                  <button style={miniActionButtonStyle} onClick={() => setActiveModule('tasks')}>Assign task</button>
-                  <button style={miniActionButtonStyle} onClick={() => setActiveModule('cashflow')}>Reduce cost</button>
-                  <button style={miniActionButtonStyle} onClick={() => setActiveModule('crm')}>Follow up</button>
-                </div>
-              </div>
-            )
-          })}
-
-          <div style={workflowStyle}>
-            <b>Cross-functional workflow</b>
-            <div>
-              Order created → checks Inventory → if missing stock, creates Procurement request → if production needed, creates Manufacturing task → assigns employee → affects Cash Flow forecast → updates Customer/CRM status → stores documents → Command Center explains what changed.
-            </div>
-          </div>
-
-          <div style={chatHistoryStyle}>
-            {chatMessages.length === 0 ? (
-              <div style={muted}>No conversation yet. Start by typing: “platila 300 za marketing” or “order 20 tables for Hotel Palace”.</div>
-            ) : (
-              chatMessages.map(msg => (
-                <div key={msg.id} style={msg.role === 'user' ? userBubbleStyle : systemResponseStyle}>
-                  <b>{msg.role === 'user' ? 'You' : 'BASAL'}</b>
-                  <div style={{ marginTop: 6 }}>{msg.text}</div>
-                  {msg.steps && msg.steps.length > 0 && (
-                    <div style={{ marginTop: 10 }}>
-                      {msg.steps.map(step => (
-                        <div key={step} style={stepStyle}>→ {step}</div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
-          <div style={inputBarStyle}>
-            <textarea
-              placeholder='Message BASAL: "order 20 tables for Hotel Palace", "platila 300 za marketing", "Ana ponuda do petka high priority"...'
-              value={chatText}
-              onChange={e => setChatText(e.target.value)}
-              onKeyDown={async e => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  await handleCommand(chatText)
-                }
-              }}
-              style={chatTextareaStyle}
-            />
-            <button onClick={() => handleCommand(chatText)} style={buttonStyle}>Send to BASAL</button>
+          <div style={{ display: 'flex', gap: 20, color: '#aaa' }}>
+            <span>Net: <b style={{ color: netResult < 0 ? '#ff5252' : '#00e676' }}>€{netResult}</b></span>
+            <span>Status: <b style={{ color: '#ff9800' }}>Pressure</b></span>
           </div>
         </div>
-
-        <Panel title="Live Company Timeline">
-          {recentActivity.length === 0 ? (
-            <div style={muted}>No activity yet.</div>
-          ) : recentActivity.map(item => (
-            <div key={item.id} style={{ padding: '10px 0', borderBottom: '1px solid #1f1f1f' }}>
-              <b>{item.label}</b>
-              <div style={muted}>{item.meta}</div>
+  
+        {/* MAIN GRID */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '320px 1fr',
+          gap: 20
+        }}>
+  
+          {/* LEFT STATE */}
+          <div style={{
+            border: '1px solid #222',
+            borderRadius: 16,
+            padding: 20,
+            background: '#0a0a0a'
+          }}>
+            <div style={{ marginBottom: 20, fontWeight: 700 }}>STATE</div>
+  
+            <div style={{ marginBottom: 20 }}>
+              <div style={muted}>Income</div>
+              <div style={{ fontSize: 28, color: '#00e676' }}>€{totalIncome}</div>
             </div>
-          ))}
-        </Panel>
+  
+            <div style={{ marginBottom: 20 }}>
+              <div style={muted}>Expenses</div>
+              <div style={{ fontSize: 28, color: '#ff5252' }}>€{totalExpense}</div>
+            </div>
+  
+            <div style={{ marginBottom: 20 }}>
+              <div style={muted}>Net</div>
+              <div style={{ fontSize: 28, color: netResult < 0 ? '#ff5252' : '#00e5ff' }}>
+                €{netResult}
+              </div>
+            </div>
+  
+            <div style={{ marginTop: 30 }}>
+              <div style={{ color: '#777', fontSize: 13 }}>KEY SIGNALS</div>
+              <div style={{ marginTop: 10, fontSize: 14 }}>
+                {netResult < 0 && <div style={{ color: '#ff5252' }}>• Expenses exceed income</div>}
+                {totalExpense > totalIncome * 0.8 && <div style={{ color: '#ff9800' }}>• Margin under pressure</div>}
+                {pendingInvoiceTotal === 0 && <div style={{ color: '#00e676' }}>• No unpaid invoices</div>}
+              </div>
+            </div>
+          </div>
+  
+          {/* RIGHT COMMAND */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+  
+            {/* COMMAND INPUT */}
+            <div style={{
+              border: '1px solid #222',
+              borderRadius: 16,
+              padding: 20,
+              background: '#0a0a0a'
+            }}>
+              <div style={{ marginBottom: 10, fontWeight: 700 }}>COMMAND</div>
+  
+              <div style={{
+                display: 'flex',
+                gap: 10
+              }}>
+                <input
+                  placeholder="Tell BASAL what to do..."
+                  value={chatText}
+                  onChange={e => setChatText(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: 14,
+                    borderRadius: 10,
+                    border: '1px solid #333',
+                    background: '#111',
+                    color: 'white'
+                  }}
+                />
+  
+                <button
+                  onClick={() => handleCommand(chatText)}
+                  style={{
+                    padding: '0 18px',
+                    borderRadius: 10,
+                    background: '#2979ff',
+                    border: 'none',
+                    color: 'white',
+                    fontWeight: 700
+                  }}
+                >
+                  →
+                </button>
+              </div>
+  
+              {/* QUICK ACTIONS */}
+              <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {quickQuestions.map(q => (
+                  <button key={q} style={chipStyle} onClick={() => answerQuickQuestion(q)}>
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+  
+            {/* ACTIVE INSIGHT */}
+            <div style={{
+              border: '1px solid #332600',
+              borderRadius: 16,
+              padding: 20,
+              background: '#151000'
+            }}>
+              <div style={{ fontWeight: 700, marginBottom: 10 }}>⚠️ Company is losing money</div>
+  
+              <div style={{ color: '#ccc', fontSize: 14 }}>
+                Expenses are higher than income.<br />
+                Net result: €{netResult}
+              </div>
+  
+              <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>
+                <button style={miniActionButtonStyle}>Analyze</button>
+                <button style={miniActionButtonStyle}>Reduce cost</button>
+                <button style={miniActionButtonStyle}>Assign task</button>
+              </div>
+            </div>
+  
+            {/* LIVE FEED */}
+            <div style={{
+              border: '1px solid #222',
+              borderRadius: 16,
+              padding: 20,
+              background: '#0a0a0a'
+            }}>
+              <div style={{ marginBottom: 12, fontWeight: 700 }}>LIVE FEED</div>
+  
+              {filteredTransactions.slice(0, 5).map(t => (
+                <div key={t.id} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '8px 0',
+                  borderBottom: '1px solid #1a1a1a'
+                }}>
+                  <div>{t.description}</div>
+                  <div style={{
+                    color: t.amount < 0 ? '#ff5252' : '#00e676'
+                  }}>
+                    {t.amount < 0 ? '-' : '+'}€{Math.abs(t.amount)}
+                  </div>
+                </div>
+              ))}
+            </div>
+  
+          </div>
+        </div>
       </>
     )
   }
