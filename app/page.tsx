@@ -16,7 +16,7 @@ type ModuleKey =
   | 'procurement'
   | 'manufacturing'
   | 'inventory'
-  | 'orders'
+  | 'orders' 
   | 'warehouse'
   | 'supply'
   | 'crm'
