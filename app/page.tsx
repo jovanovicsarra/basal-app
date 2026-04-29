@@ -11,42 +11,74 @@ type InventoryItem = { id: string; company_id: string | null; name: string; quan
 type Invoice = { id: string; company_id: string | null; client: string; amount: number; due_date?: string | null; status?: string | null }
 
 type ModuleKey =
-  | 'chat'
-  | 'finance'
-  | 'procurement'
-  | 'manufacturing'
-  | 'inventory'
-  | 'orders' 
-  | 'warehouse'
-  | 'supply'
-  | 'crm'
-  | 'project'
-  | 'workforce'
-  | 'hr'
-  | 'ecommerce'
-  | 'marketing'
-  | 'settings'
+  | 'command'
+  | 'cashflow' | 'transactions' | 'invoices' | 'instantCash'
+  | 'orders' | 'procurement' | 'manufacturing' | 'inventory' | 'warehouse' | 'supply'
+  | 'tasks' | 'employees' | 'performance' | 'hr'
+  | 'crm' | 'marketing' | 'ecommerce' | 'sales'
+  | 'documents' | 'uploads' | 'memory'
+  | 'companySetup' | 'users' | 'permissions'
 
-const modules: { key: ModuleKey; label: string; icon: string }[] = [
-  { key: 'chat', label: 'Command Center', icon: '⌘' },
-  { key: 'finance', label: 'Finance', icon: '€' },
-  { key: 'procurement', label: 'Procurement', icon: '◈' },
-  { key: 'manufacturing', label: 'Manufacturing', icon: '⚙' },
-  { key: 'inventory', label: 'Inventory', icon: '▦' },
-  { key: 'orders', label: 'Order Management', icon: '□' },
-  { key: 'warehouse', label: 'Warehouse', icon: '⌂' },
-  { key: 'supply', label: 'Supply Chain', icon: '⇄' },
-  { key: 'crm', label: 'CRM', icon: '◇' },
-  { key: 'project', label: 'Project Management', icon: '✓' },
-  { key: 'workforce', label: 'Workforce', icon: '◷' },
-  { key: 'hr', label: 'Human Resources', icon: '♙' },
-  { key: 'ecommerce', label: 'Ecommerce', icon: '◌' },
-  { key: 'marketing', label: 'Marketing Automation', icon: '◎' },
-  { key: 'settings', label: 'Company Setup', icon: '+' },
+const menuGroups: { title: string; items: { key: ModuleKey; label: string; icon: string }[] }[] = [
+  { title: '1. Command Center', items: [{ key: 'command', label: 'Command Center', icon: '⌘' }] },
+  {
+    title: '2. Finance',
+    items: [
+      { key: 'cashflow', label: 'Cash Flow', icon: '€' },
+      { key: 'transactions', label: 'Transactions', icon: '⇅' },
+      { key: 'invoices', label: 'Invoices', icon: '□' },
+      { key: 'instantCash', label: 'Instant Cash', icon: '⚡' },
+    ],
+  },
+  {
+    title: '3. Operations',
+    items: [
+      { key: 'orders', label: 'Orders', icon: '◫' },
+      { key: 'procurement', label: 'Procurement', icon: '◈' },
+      { key: 'manufacturing', label: 'Manufacturing', icon: '⚙' },
+      { key: 'inventory', label: 'Inventory', icon: '▦' },
+      { key: 'warehouse', label: 'Warehouse', icon: '⌂' },
+      { key: 'supply', label: 'Supply Chain', icon: '⇄' },
+    ],
+  },
+  {
+    title: '4. People',
+    items: [
+      { key: 'tasks', label: 'Tasks', icon: '✓' },
+      { key: 'employees', label: 'Employees', icon: '♙' },
+      { key: 'performance', label: 'Performance', icon: '◷' },
+      { key: 'hr', label: 'HR', icon: '◇' },
+    ],
+  },
+  {
+    title: '5. Growth',
+    items: [
+      { key: 'crm', label: 'CRM', icon: '◇' },
+      { key: 'marketing', label: 'Marketing', icon: '◎' },
+      { key: 'ecommerce', label: 'Ecommerce', icon: '◌' },
+      { key: 'sales', label: 'Sales Pipeline', icon: '↗' },
+    ],
+  },
+  {
+    title: '6. Knowledge',
+    items: [
+      { key: 'documents', label: 'Documents', icon: '▤' },
+      { key: 'uploads', label: 'Uploads', icon: '↑' },
+      { key: 'memory', label: 'Company Memory', icon: '◉' },
+    ],
+  },
+  {
+    title: '7. Settings',
+    items: [
+      { key: 'companySetup', label: 'Company Setup', icon: '+' },
+      { key: 'users', label: 'Users', icon: '♟' },
+      { key: 'permissions', label: 'Permissions', icon: '◇' },
+    ],
+  },
 ]
 
 export default function Home() {
-  const [activeModule, setActiveModule] = useState<ModuleKey>('chat')
+  const [activeModule, setActiveModule] = useState<ModuleKey>('command')
 
   const [companies, setCompanies] = useState<Company[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -84,6 +116,8 @@ export default function Home() {
   const [invoiceDue, setInvoiceDue] = useState('')
 
   const [stressAmount, setStressAmount] = useState('')
+  const [chatText, setChatText] = useState('')
+  const [companyMemory, setCompanyMemory] = useState<string[]>([])
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -91,20 +125,11 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    if (!selectedCompany && companies.length > 0) {
-      setSelectedCompany(companies[0].id)
-    }
+    if (!selectedCompany && companies.length > 0) setSelectedCompany(companies[0].id)
   }, [companies, selectedCompany])
 
   async function loadAll() {
-    await Promise.all([
-      loadCompanies(),
-      loadTransactions(),
-      loadTasks(),
-      loadEmployees(),
-      loadInventory(),
-      loadInvoices(),
-    ])
+    await Promise.all([loadCompanies(), loadTransactions(), loadTasks(), loadEmployees(), loadInventory(), loadInvoices()])
   }
 
   async function loadCompanies() {
@@ -127,7 +152,7 @@ export default function Home() {
 
   async function loadEmployees() {
     const { data, error } = await supabase.from('employees').select('*').order('created_at', { ascending: false })
-    if (error) return setMessage('Greška pri učitavanju zaposlenih: ' + error.message)
+    if (error) return
     setEmployees((data || []).map((e) => ({
       ...e,
       hourly_cost: Number(e.hourly_cost),
@@ -138,7 +163,7 @@ export default function Home() {
 
   async function loadInventory() {
     const { data, error } = await supabase.from('inventory_items').select('*').order('created_at', { ascending: false })
-    if (error) return setMessage('Greška pri učitavanju lagera: ' + error.message)
+    if (error) return
     setInventory((data || []).map((i) => ({
       ...i,
       quantity: Number(i.quantity),
@@ -149,21 +174,20 @@ export default function Home() {
 
   async function loadInvoices() {
     const { data, error } = await supabase.from('invoices').select('*').order('created_at', { ascending: false })
-    if (error) return setMessage('Greška pri učitavanju faktura: ' + error.message)
+    if (error) return
     setInvoices((data || []).map((i) => ({ ...i, amount: Number(i.amount) })))
   }
 
+  const selectedCompanyData = useMemo(() => companies.find(c => c.id === selectedCompany) || null, [companies, selectedCompany])
   const filteredTransactions = useMemo(() => selectedCompany ? transactions.filter(t => t.company_id === selectedCompany) : [], [transactions, selectedCompany])
   const filteredTasks = useMemo(() => selectedCompany ? tasks.filter(t => t.company_id === selectedCompany) : [], [tasks, selectedCompany])
   const filteredEmployees = useMemo(() => selectedCompany ? employees.filter(e => e.company_id === selectedCompany) : [], [employees, selectedCompany])
   const filteredInventory = useMemo(() => selectedCompany ? inventory.filter(i => i.company_id === selectedCompany) : [], [inventory, selectedCompany])
   const filteredInvoices = useMemo(() => selectedCompany ? invoices.filter(i => i.company_id === selectedCompany) : [], [invoices, selectedCompany])
-  const selectedCompanyData = useMemo(() => companies.find(c => c.id === selectedCompany) || null, [companies, selectedCompany])
 
-  const totalIncome = useMemo(() => filteredTransactions.filter(t => t.type === 'income' || t.amount > 0).reduce((s, t) => s + Math.abs(t.amount), 0), [filteredTransactions])
-  const totalExpense = useMemo(() => filteredTransactions.filter(t => t.type === 'expense' || t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0), [filteredTransactions])
+  const totalIncome = filteredTransactions.filter(t => t.type === 'income' || t.amount > 0).reduce((s, t) => s + Math.abs(t.amount), 0)
+  const totalExpense = filteredTransactions.filter(t => t.type === 'expense' || t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
   const netResult = totalIncome - totalExpense
-
   const openTasks = filteredTasks.filter(t => t.status !== 'done')
   const highPriorityTasks = filteredTasks.filter(t => t.priority === 'high' && t.status !== 'done')
   const pendingInvoices = filteredInvoices.filter(i => i.status !== 'paid')
@@ -171,44 +195,33 @@ export default function Home() {
   const instantCashOffer = Math.round(pendingInvoiceTotal * 0.96)
   const factoringFee = pendingInvoiceTotal - instantCashOffer
 
-  const expenseTransactions = filteredTransactions.filter(t => t.type === 'expense' || t.amount < 0)
-
   const categoryTotals = useMemo(() => {
     const map: Record<string, number> = {}
-    expenseTransactions.forEach(t => {
+    filteredTransactions.filter(t => t.type === 'expense' || t.amount < 0).forEach(t => {
       const cat = t.category || 'other'
       map[cat] = (map[cat] || 0) + Math.abs(t.amount)
     })
     return Object.entries(map).map(([category, total]) => ({ category, total })).sort((a, b) => b.total - a.total)
-  }, [expenseTransactions])
+  }, [filteredTransactions])
 
   const warnings = useMemo(() => {
     const items: string[] = []
-
     if (netResult < 0) items.push(`Net result is negative: €${netResult}. Company is currently losing money.`)
-
-    const top = categoryTotals[0]
-    if (top && totalExpense > 0) {
-      const p = Math.round((top.total / totalExpense) * 100)
-      if (p >= 50) items.push(`${top.category} represents ${p}% of spending. This cost area needs review.`)
-      if (top.category === 'other' && p >= 30) items.push('Too much spending is uncategorized. Add clearer descriptions.')
-    }
-
     if (totalIncome > 0 && totalExpense / totalIncome > 0.8) items.push('Expenses are above 80% of income. Margin pressure is high.')
     if (highPriorityTasks.length > 0) items.push(`${highPriorityTasks.length} high priority task(s) are still open.`)
     if (pendingInvoiceTotal > 0) items.push(`Pending invoices: €${pendingInvoiceTotal}. Instant cash estimate: €${instantCashOffer}.`)
+    const top = categoryTotals[0]
+    if (top && totalExpense > 0 && Math.round((top.total / totalExpense) * 100) >= 50) items.push(`${top.category} dominates spending. Review this cost area.`)
     if (items.length === 0 && selectedCompany) items.push('No critical warning detected. Company looks stable based on current data.')
-
     return items
-  }, [netResult, categoryTotals, totalExpense, totalIncome, highPriorityTasks.length, pendingInvoiceTotal, instantCashOffer, selectedCompany])
+  }, [netResult, totalIncome, totalExpense, highPriorityTasks.length, pendingInvoiceTotal, instantCashOffer, categoryTotals, selectedCompany])
 
   const cashStress = useMemo(() => {
     const purchase = Number(stressAmount) || 0
     const projected = netResult + pendingInvoiceTotal - purchase
-
     if (!purchase) return 'Enter a purchase amount to stress-test cash flow.'
-    if (projected < 0) return `Do NOT buy now. After pending invoices and this purchase, projected cash position is €${projected}.`
-    return `Purchase looks possible. Projected position after pending invoices and purchase: €${projected}.`
+    if (projected < 0) return `Do NOT buy now. Projected cash after this purchase: €${projected}.`
+    return `Purchase looks possible. Projected cash after pending invoices and purchase: €${projected}.`
   }, [stressAmount, netResult, pendingInvoiceTotal])
 
   const recentActivity = [
@@ -220,9 +233,14 @@ export default function Home() {
     ...filteredTasks.slice(0, 5).map(t => ({
       id: `task-${t.id}`,
       label: `Task ${t.status === 'done' ? 'completed' : 'created'}: ${t.title}`,
-      meta: `${t.assigned_to || 'Unassigned'} • ${t.priority || 'normal'} priority • ${t.due_date || 'no due date'}`,
+      meta: `${t.assigned_to || 'Unassigned'} • ${t.priority || 'normal'} • ${t.due_date || 'no due date'}`,
     })),
-  ].slice(0, 8)
+    ...companyMemory.slice(0, 5).map((m, i) => ({
+      id: `mem-${i}`,
+      label: 'Company memory saved',
+      meta: m,
+    })),
+  ].slice(0, 10)
 
   function detectCategory(lower: string) {
     if (lower.includes('marketing') || lower.includes('ads') || lower.includes('reklama') || lower.includes('instagram') || lower.includes('facebook')) return 'marketing'
@@ -251,22 +269,14 @@ export default function Home() {
     }
     if (lower.includes('petak') || lower.includes('friday')) dueDate = 'Friday'
 
-    const title = text
-      .replace(/dodaj task/gi, '')
-      .replace(/add task/gi, '')
-      .replace(/podseti/gi, '')
-      .replace(/remind/gi, '')
-      .trim()
-
+    const title = text.replace(/dodaj task/gi, '').replace(/add task/gi, '').replace(/podseti/gi, '').replace(/remind/gi, '').trim()
     return { title: title || text, assignedTo: words[0] || '', dueDate, priority }
   }
 
   async function addCompany() {
     if (!name.trim() || !city.trim()) return setMessage('Unesi bar naziv firme i grad.')
-
     const { error } = await supabase.from('companies').insert([{ name: name.trim(), pib: pib.trim(), city: city.trim() }])
     if (error) return setMessage('Greška pri dodavanju firme: ' + error.message)
-
     setName('')
     setPib('')
     setCity('')
@@ -397,6 +407,9 @@ export default function Home() {
     if (!text) return
 
     const lower = text.toLowerCase()
+    const amountMatch = text.match(/-?\d+(\.\d+)?/)
+    const amount = amountMatch ? Math.abs(Number(amountMatch[0])) : 0
+
     const looksLikeTask =
       lower.includes('task') ||
       lower.includes('podseti') ||
@@ -407,8 +420,53 @@ export default function Home() {
       lower.includes('posalji') ||
       lower.includes('pošalji')
 
-    const amountMatch = text.match(/-?\d+(\.\d+)?/)
-    const amount = amountMatch ? Math.abs(Number(amountMatch[0])) : 0
+    const looksLikeOrder =
+      lower.includes('order') ||
+      lower.includes('porudžbina') ||
+      lower.includes('porudzbina') ||
+      lower.includes('narudžbina') ||
+      lower.includes('narudzbina')
+
+    if (looksLikeOrder) {
+      const parsed = parseTaskCommand(`Order created: ${text}`)
+
+      await supabase.from('tasks').insert([
+        {
+          company_id: selectedCompany,
+          title: `Check Inventory for order: ${text}`,
+          assigned_to: parsed.assignedTo || null,
+          due_date: parsed.dueDate || null,
+          priority: 'high',
+          status: 'open',
+        },
+        {
+          company_id: selectedCompany,
+          title: `Create Procurement request for order: ${text}`,
+          assigned_to: parsed.assignedTo || null,
+          due_date: parsed.dueDate || null,
+          priority: 'normal',
+          status: 'open',
+        },
+        {
+          company_id: selectedCompany,
+          title: `Prepare Manufacturing plan for order: ${text}`,
+          assigned_to: parsed.assignedTo || null,
+          due_date: parsed.dueDate || null,
+          priority: 'normal',
+          status: 'open',
+        },
+      ])
+
+      setCompanyMemory(prev => [
+        `Order created → checks Inventory → if missing stock, creates Procurement request → if production needed, creates Manufacturing task → assigns employee → affects Cash Flow forecast → updates Customer/CRM status → stores documents → Command Center explains what changed. Order: ${text}`,
+        ...prev,
+      ])
+
+      setMessage('Order workflow executed across Operations, People, Finance, Growth and Knowledge.')
+      setChatText('')
+      loadTasks()
+      return
+    }
 
     if (looksLikeTask && !amount) {
       const p = parseTaskCommand(text)
@@ -425,60 +483,63 @@ export default function Home() {
       if (error) return setMessage('Greška pri unosu taska: ' + error.message)
 
       setMessage(`Task created: ${p.title}`)
+      setChatText('')
       loadTasks()
       return
     }
 
-    if (!amount || Number.isNaN(amount)) {
-      return setMessage('Nisam našao iznos. Primer: platila 300 za marketing ili Ana ponuda za Metalac do petka high priority')
+    if (amount) {
+      const isExpense =
+        lower.includes('spent') ||
+        lower.includes('paid') ||
+        lower.includes('expense') ||
+        lower.includes('trošak') ||
+        lower.includes('trosak') ||
+        lower.includes('platio') ||
+        lower.includes('platila') ||
+        lower.includes('kupila') ||
+        lower.includes('kupili') ||
+        lower.includes('rashod')
+
+      const isIncome =
+        lower.includes('received') ||
+        lower.includes('income') ||
+        lower.includes('revenue') ||
+        lower.includes('uplata') ||
+        lower.includes('primili') ||
+        lower.includes('zaradili') ||
+        lower.includes('prihod')
+
+      const type = isExpense ? 'expense' : isIncome ? 'income' : 'income'
+      const finalAmount = type === 'expense' ? -amount : amount
+      const category = detectCategory(lower)
+
+      const { error } = await supabase.from('transactions').insert([{
+        company_id: selectedCompany,
+        amount: finalAmount,
+        type,
+        description: text,
+        category,
+        date: new Date().toISOString().slice(0, 10),
+      }])
+
+      if (error) return setMessage('Greška pri unosu: ' + error.message)
+
+      setMessage(`Dodato: ${type} €${amount} / ${category}`)
+      setChatText('')
+      loadTransactions()
+      return
     }
 
-    const isExpense =
-      lower.includes('spent') ||
-      lower.includes('paid') ||
-      lower.includes('expense') ||
-      lower.includes('trošak') ||
-      lower.includes('trosak') ||
-      lower.includes('platio') ||
-      lower.includes('platila') ||
-      lower.includes('kupila') ||
-      lower.includes('kupili') ||
-      lower.includes('rashod')
-
-    const isIncome =
-      lower.includes('received') ||
-      lower.includes('income') ||
-      lower.includes('revenue') ||
-      lower.includes('uplata') ||
-      lower.includes('primili') ||
-      lower.includes('zaradili') ||
-      lower.includes('prihod')
-
-    const type = isExpense ? 'expense' : isIncome ? 'income' : 'income'
-    const finalAmount = type === 'expense' ? -amount : amount
-    const category = detectCategory(lower)
-
-    const { error } = await supabase.from('transactions').insert([{
-      company_id: selectedCompany,
-      amount: finalAmount,
-      type,
-      description: text,
-      category,
-      date: new Date().toISOString().slice(0, 10),
-    }])
-
-    if (error) return setMessage('Greška pri unosu: ' + error.message)
-
-    setMessage(`Dodato: ${type} €${amount} / ${category}`)
-    loadTransactions()
+    setCompanyMemory(prev => [text, ...prev])
+    setMessage('Saved to Company Memory.')
+    setChatText('')
   }
 
   async function deleteTransaction(id: string) {
     if (!confirm('Da li si sigurna da želiš da obrišeš?')) return
-
     const { error } = await supabase.from('transactions').delete().eq('id', id)
     if (error) return setMessage('Greška pri brisanju: ' + error.message)
-
     loadTransactions()
   }
 
@@ -490,57 +551,9 @@ export default function Home() {
 
   async function deleteTask(id: string) {
     if (!confirm('Da li si sigurna da želiš da obrišeš task?')) return
-
     const { error } = await supabase.from('tasks').delete().eq('id', id)
     if (error) return setMessage('Greška pri brisanju taska: ' + error.message)
-
     loadTasks()
-  }
-
-  function renderActiveModule() {
-    if (!selectedCompanyData) {
-      return (
-        <Panel title="Create or select your company">
-          <p style={muted}>BASAL needs one active company to become its operating brain.</p>
-          <CompanySetup />
-        </Panel>
-      )
-    }
-
-    if (activeModule === 'chat') return <ChatModule />
-    if (activeModule === 'finance') return <FinanceModule />
-    if (activeModule === 'project') return <TasksModule />
-    if (activeModule === 'workforce' || activeModule === 'hr') return <EmployeesModule />
-    if (activeModule === 'inventory' || activeModule === 'warehouse') return <InventoryModule />
-    if (activeModule === 'marketing' || activeModule === 'ecommerce') return <MarketingModule />
-    if (activeModule === 'crm' || activeModule === 'orders' || activeModule === 'supply' || activeModule === 'procurement') return <InvoicesModule />
-    if (activeModule === 'settings') return <CompanySetup />
-
-    return (
-      <Panel title={modules.find(m => m.key === activeModule)?.label || 'Module'}>
-        <p style={muted}>This module is prepared in the BASAL nervous system. Data model and UI expansion comes next.</p>
-      </Panel>
-    )
-  }
-
-  function CompanySetup() {
-    return (
-      <>
-        <Panel title="Active company">
-          <select value={selectedCompany || ''} onChange={(e) => setSelectedCompany(e.target.value)} style={inputStyle}>
-            <option value="">Select company</option>
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </Panel>
-
-        <Panel title="Add company">
-          <input placeholder="Company name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
-          <input placeholder="PIB" value={pib} onChange={(e) => setPib(e.target.value)} style={inputStyle} />
-          <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} style={inputStyle} />
-          <button onClick={addCompany} style={buttonStyle}>Add company</button>
-        </Panel>
-      </>
-    )
   }
 
   function HeaderMetrics() {
@@ -560,7 +573,7 @@ export default function Home() {
     )
   }
 
-  function ChatModule() {
+  function CommandCenter() {
     return (
       <>
         <HeaderMetrics />
@@ -569,7 +582,7 @@ export default function Home() {
           <div style={assistantBubbleStyle}>
             <b>BASAL</b>
             <p style={{ marginBottom: 0 }}>
-              I am the operating layer for {selectedCompanyData?.name}. Ask me to add expenses, create tasks, check cash pressure, or review operations.
+              Send anything: expense, task, order, note, document summary, screenshot description, or operational instruction. I route it through the company nervous system.
             </p>
           </div>
 
@@ -577,17 +590,27 @@ export default function Home() {
             <div key={i} style={warningStyle}>⚠️ {w}</div>
           ))}
 
+          <div style={workflowStyle}>
+            <b>Cross-functional workflow</b>
+            <div>
+              Order created → checks Inventory → if missing stock, creates Procurement request → if production needed, creates Manufacturing task → assigns employee → affects Cash Flow forecast → updates Customer/CRM status → stores documents → Command Center explains what changed.
+            </div>
+          </div>
+
           <div style={inputBarStyle}>
-            <input
-              placeholder='Message BASAL: "platila 300 za marketing" or "Ana ponuda za Metalac do petka high priority"'
+            <textarea
+              placeholder='Message BASAL: "order 20 tables for Hotel Palace", "platila 300 za marketing", "Ana ponuda do petka high priority"...'
+              value={chatText}
+              onChange={e => setChatText(e.target.value)}
               onKeyDown={async e => {
-                if (e.key === 'Enter') {
-                  await handleCommand(e.currentTarget.value)
-                  e.currentTarget.value = ''
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  await handleCommand(chatText)
                 }
               }}
-              style={chatInputStyle}
+              style={chatTextareaStyle}
             />
+            <button onClick={() => handleCommand(chatText)} style={buttonStyle}>Send to BASAL</button>
           </div>
         </div>
 
@@ -610,9 +633,20 @@ export default function Home() {
       <>
         <HeaderMetrics />
 
-        <Panel title="Predictive Cash-Flow Guardian">
+        <Panel title="Cash Flow">
           <input placeholder="Stress-test purchase amount, e.g. 20000" value={stressAmount} onChange={e => setStressAmount(e.target.value)} style={inputStyle} />
           <div style={insightStyle}>{cashStress}</div>
+        </Panel>
+
+        <Panel title="Transactions">
+          <input placeholder="Amount (€)" value={txAmount} onChange={e => setTxAmount(e.target.value)} style={inputStyle} />
+          <select value={txType} onChange={e => setTxType(e.target.value as 'income' | 'expense')} style={inputStyle}>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+          <input placeholder="Description" value={txDescription} onChange={e => setTxDescription(e.target.value)} style={inputStyle} />
+          <input type="date" value={txDate} onChange={e => setTxDate(e.target.value)} style={inputStyle} />
+          <button onClick={addTransaction} style={buttonStyle}>Add transaction</button>
         </Panel>
 
         <Panel title="Spending by category">
@@ -631,37 +665,13 @@ export default function Home() {
             )
           })}
         </Panel>
-
-        <Panel title="Add transaction manually">
-          <input placeholder="Amount (€)" value={txAmount} onChange={e => setTxAmount(e.target.value)} style={inputStyle} />
-          <select value={txType} onChange={e => setTxType(e.target.value as 'income' | 'expense')} style={inputStyle}>
-            <option value="income">Income</option>
-            <option value="expense">Expense</option>
-          </select>
-          <input placeholder="Description" value={txDescription} onChange={e => setTxDescription(e.target.value)} style={inputStyle} />
-          <input type="date" value={txDate} onChange={e => setTxDate(e.target.value)} style={inputStyle} />
-          <button onClick={addTransaction} style={buttonStyle}>Add transaction</button>
-        </Panel>
-
-        <Panel title="Transactions">
-          {filteredTransactions.length === 0 ? <div style={muted}>No transactions yet.</div> : filteredTransactions.map(t => (
-            <div key={t.id} style={taskStyle}>
-              <button onClick={() => deleteTransaction(t.id)} style={smallDeleteButtonStyle}>X</button>
-              <b>{t.type.toUpperCase()}</b>
-              <div>Date: {t.date}</div>
-              <div>Amount: €{t.amount}</div>
-              <div>Description: {t.description}</div>
-              <div>Category: {t.category || 'other'}</div>
-            </div>
-          ))}
-        </Panel>
       </>
     )
   }
 
   function TasksModule() {
     return (
-      <Panel title="Project / Task Management">
+      <Panel title="Tasks / Project Management">
         <input placeholder="Task title" value={taskTitle} onChange={e => setTaskTitle(e.target.value)} style={inputStyle} />
         <input placeholder="Assigned to" value={taskAssignedTo} onChange={e => setTaskAssignedTo(e.target.value)} style={inputStyle} />
         <input type="date" value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)} style={inputStyle} />
@@ -688,7 +698,7 @@ export default function Home() {
 
   function EmployeesModule() {
     return (
-      <Panel title="Employee Trust & Performance Score">
+      <Panel title="Employees / Performance / HR">
         <input placeholder="Employee name" value={employeeName} onChange={e => setEmployeeName(e.target.value)} style={inputStyle} />
         <input placeholder="Hourly cost" value={hourlyCost} onChange={e => setHourlyCost(e.target.value)} style={inputStyle} />
         <input placeholder="Hours worked" value={hoursWorked} onChange={e => setHoursWorked(e.target.value)} style={inputStyle} />
@@ -711,9 +721,11 @@ export default function Home() {
     )
   }
 
-  function InventoryModule() {
+  function OperationsModule() {
     return (
-      <Panel title="Inventory / Warehouse Management">
+      <Panel title="Operations Center">
+        <div style={workflowStyle}>Orders → Inventory → Procurement → Manufacturing → Warehouse → Supply Chain → People → Finance → CRM.</div>
+
         <input placeholder="Item name" value={itemName} onChange={e => setItemName(e.target.value)} style={inputStyle} />
         <input placeholder="Quantity" value={itemQty} onChange={e => setItemQty(e.target.value)} style={inputStyle} />
         <input placeholder="Months slow" value={itemSlowMonths} onChange={e => setItemSlowMonths(e.target.value)} style={inputStyle} />
@@ -724,9 +736,7 @@ export default function Home() {
             <div key={i.id} style={taskStyle}>
               <b>{i.name}</b>
               <div style={muted}>Qty: {i.quantity} • Slow: {i.months_slow} months</div>
-              {i.months_slow >= 3 && (
-                <div style={insightStyle}>Ghost Marketer: “{i.name} is slow. Suggest -{i.discount}% campaign today.”</div>
-              )}
+              {i.months_slow >= 3 && <div style={insightStyle}>Marketing signal: suggest -{i.discount}% campaign.</div>}
             </div>
           ))}
         </List>
@@ -734,30 +744,13 @@ export default function Home() {
     )
   }
 
-  function MarketingModule() {
+  function GrowthModule() {
     return (
-      <Panel title="Marketing Automation / Ghost Marketer">
-        <p style={muted}>BASAL watches inventory and creates campaign suggestions from slow-moving stock.</p>
-        {filteredInventory.filter(i => i.months_slow >= 3).length === 0 ? (
-          <div style={insightStyle}>No slow stock detected yet.</div>
-        ) : filteredInventory.filter(i => i.months_slow >= 3).map(i => (
-          <div key={i.id} style={taskStyle}>
-            <b>{i.name}</b>
-            <div style={muted}>Standing for {i.months_slow} months • quantity {i.quantity}</div>
-            <div style={insightStyle}>Generated campaign: “Limited offer on {i.name}. Save {i.discount}% this week.”</div>
-          </div>
-        ))}
-      </Panel>
-    )
-  }
-
-  function InvoicesModule() {
-    return (
-      <Panel title="CRM / Orders / Procurement / Instant Cash">
+      <Panel title="Growth Center / CRM / Marketing / Ecommerce / Sales Pipeline">
         <input placeholder="Client" value={invoiceClient} onChange={e => setInvoiceClient(e.target.value)} style={inputStyle} />
         <input placeholder="Invoice amount" value={invoiceAmount} onChange={e => setInvoiceAmount(e.target.value)} style={inputStyle} />
         <input type="date" value={invoiceDue} onChange={e => setInvoiceDue(e.target.value)} style={inputStyle} />
-        <button onClick={addInvoice} style={buttonStyle}>Add pending invoice</button>
+        <button onClick={addInvoice} style={buttonStyle}>Add invoice / deal</button>
 
         <div style={insightStyle}>Pending invoices: €{pendingInvoiceTotal}. Instant cash offer: €{instantCashOffer}. Fee: €{factoringFee}.</div>
 
@@ -773,11 +766,65 @@ export default function Home() {
     )
   }
 
+  function KnowledgeModule() {
+    return (
+      <Panel title="Knowledge Center / Documents / Uploads / Company Memory">
+        <textarea
+          placeholder="Paste document summary, screenshot interpretation, supplier info, client context, meeting note..."
+          value={chatText}
+          onChange={e => setChatText(e.target.value)}
+          style={chatTextareaStyle}
+        />
+        <button onClick={() => handleCommand(chatText)} style={buttonStyle}>Save to Company Memory</button>
+
+        <List>
+          {companyMemory.length === 0 ? <div style={muted}>No saved memory yet.</div> : companyMemory.map((m, i) => (
+            <div key={i} style={taskStyle}>{m}</div>
+          ))}
+        </List>
+      </Panel>
+    )
+  }
+
+  function CompanySetup() {
+    return (
+      <>
+        <Panel title="Active company">
+          <select value={selectedCompany || ''} onChange={(e) => setSelectedCompany(e.target.value)} style={inputStyle}>
+            <option value="">Select company</option>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </Panel>
+
+        <Panel title="Add company">
+          <input placeholder="Company name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+          <input placeholder="PIB" value={pib} onChange={(e) => setPib(e.target.value)} style={inputStyle} />
+          <input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} style={inputStyle} />
+          <button onClick={addCompany} style={buttonStyle}>Add company</button>
+        </Panel>
+      </>
+    )
+  }
+
+  function renderActiveModule() {
+    if (!selectedCompanyData && activeModule !== 'companySetup') return <CompanySetup />
+    if (activeModule === 'command') return <CommandCenter />
+    if (['cashflow', 'transactions', 'invoices', 'instantCash'].includes(activeModule)) return <FinanceModule />
+    if (['orders', 'procurement', 'manufacturing', 'inventory', 'warehouse', 'supply'].includes(activeModule)) return <OperationsModule />
+    if (activeModule === 'tasks') return <TasksModule />
+    if (['employees', 'performance', 'hr'].includes(activeModule)) return <EmployeesModule />
+    if (['crm', 'marketing', 'ecommerce', 'sales'].includes(activeModule)) return <GrowthModule />
+    if (['documents', 'uploads', 'memory'].includes(activeModule)) return <KnowledgeModule />
+    return <CompanySetup />
+  }
+
+  const activeLabel = menuGroups.flatMap(g => g.items).find(i => i.key === activeModule)?.label || 'Command Center'
+
   return (
     <div style={appStyle}>
       <aside style={sidebarStyle}>
         <div style={{ padding: '18px 16px', borderBottom: '1px solid #1f1f1f' }}>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>BASAL</div>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>BASAL</div>
           <div style={{ ...muted, marginTop: 4 }}>Company nervous system</div>
         </div>
 
@@ -789,20 +836,25 @@ export default function Home() {
         </div>
 
         <nav style={{ padding: 8 }}>
-          {modules.map(m => (
-            <button
-              key={m.key}
-              onClick={() => setActiveModule(m.key)}
-              style={{
-                ...sidebarButtonStyle,
-                background: activeModule === m.key ? '#10161a' : 'transparent',
-                color: activeModule === m.key ? '#00e5ff' : '#cfcfcf',
-                borderColor: activeModule === m.key ? '#183b42' : 'transparent',
-              }}
-            >
-              <span style={{ width: 22, opacity: 0.9 }}>{m.icon}</span>
-              <span>{m.label}</span>
-            </button>
+          {menuGroups.map(group => (
+            <div key={group.title} style={{ marginBottom: 14 }}>
+              <div style={groupTitleStyle}>{group.title}</div>
+              {group.items.map(item => (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveModule(item.key)}
+                  style={{
+                    ...sidebarButtonStyle,
+                    background: activeModule === item.key ? '#10161a' : 'transparent',
+                    color: activeModule === item.key ? '#00e5ff' : '#cfcfcf',
+                    borderColor: activeModule === item.key ? '#183b42' : 'transparent',
+                  }}
+                >
+                  <span style={{ width: 22 }}>{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
       </aside>
@@ -811,19 +863,15 @@ export default function Home() {
         <div style={topBarStyle}>
           <div>
             <div style={{ fontSize: 13, color: '#777' }}>Active module</div>
-            <h1 style={{ margin: 0, fontSize: 28 }}>
-              {modules.find(m => m.key === activeModule)?.label}
-            </h1>
+            <h1 style={{ margin: 0, fontSize: 28 }}>{activeLabel}</h1>
           </div>
-
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 13, color: '#777' }}>Active company</div>
             <div style={{ fontWeight: 700 }}>{selectedCompanyData?.name || 'None'}</div>
           </div>
         </div>
 
-        {message && <div style={{ ...cardStyle, maxWidth: 820 }}>{message}</div>}
-
+        {message && <div style={{ ...cardStyle, maxWidth: 900 }}>{message}</div>}
         {renderActiveModule()}
       </main>
     </div>
@@ -853,179 +901,23 @@ function List({ children }: { children: ReactNode }) {
 }
 
 const muted = { color: '#999', fontSize: 14 } as const
-
-const appStyle = {
-  display: 'grid',
-  gridTemplateColumns: '300px 1fr',
-  minHeight: '100vh',
-  background: '#000',
-  color: 'white',
-  fontFamily: 'Arial, sans-serif',
-} as const
-
-const sidebarStyle = {
-  borderRight: '1px solid #1f1f1f',
-  background: '#050505',
-  minHeight: '100vh',
-  position: 'sticky',
-  top: 0,
-} as const
-
-const mainStyle = {
-  padding: 28,
-  maxWidth: 1180,
-} as const
-
-const topBarStyle = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  marginBottom: 24,
-  paddingBottom: 18,
-  borderBottom: '1px solid #1f1f1f',
-} as const
-
-const sidebarButtonStyle = {
-  width: '100%',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 10,
-  padding: '11px 12px',
-  marginBottom: 4,
-  border: '1px solid transparent',
-  borderRadius: 10,
-  cursor: 'pointer',
-  textAlign: 'left',
-  fontWeight: 600,
-} as const
-
-const companySelectStyle = {
-  width: '100%',
-  padding: 11,
-  borderRadius: 10,
-  border: '1px solid #333',
-  background: '#0a0a0a',
-  color: 'white',
-  outline: 'none',
-} as const
-
-const chatShellStyle = {
-  maxWidth: 900,
-  minHeight: 520,
-  border: '1px solid #222',
-  borderRadius: 18,
-  background: '#050505',
-  padding: 22,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 14,
-  marginBottom: 20,
-} as const
-
-const assistantBubbleStyle = {
-  alignSelf: 'flex-start',
-  maxWidth: 720,
-  padding: 16,
-  borderRadius: 16,
-  background: '#0d0d0d',
-  border: '1px solid #222',
-  color: '#e8e8e8',
-} as const
-
-const inputBarStyle = {
-  marginTop: 'auto',
-  borderTop: '1px solid #1f1f1f',
-  paddingTop: 16,
-} as const
-
-const chatInputStyle = {
-  width: '100%',
-  padding: 16,
-  borderRadius: 14,
-  border: '1px solid #333',
-  background: '#111',
-  color: 'white',
-  outline: 'none',
-  fontSize: 15,
-} as const
-
-const inputStyle = {
-  display: 'block',
-  marginBottom: 10,
-  padding: 12,
-  width: '100%',
-  borderRadius: 8,
-  border: '1px solid #333',
-  background: '#111',
-  color: 'white',
-  outline: 'none',
-} as const
-
-const buttonStyle = {
-  width: '100%',
-  padding: 12,
-  cursor: 'pointer',
-  background: '#00e5ff',
-  color: '#000',
-  border: 'none',
-  borderRadius: 10,
-  fontWeight: 'bold',
-} as const
-
-const secondaryButtonStyle = {
-  marginTop: 10,
-  padding: '7px 10px',
-  cursor: 'pointer',
-  background: '#111',
-  color: 'white',
-  border: '1px solid #333',
-  borderRadius: 8,
-} as const
-
-const cardStyle = {
-  marginBottom: 20,
-  padding: 20,
-  border: '1px solid #222',
-  borderRadius: 14,
-  background: '#0a0a0a',
-} as const
-
-const warningStyle = {
-  marginBottom: 10,
-  padding: 12,
-  borderRadius: 10,
-  border: '1px solid #332600',
-  background: '#151000',
-  color: '#ffcc66',
-} as const
-
-const insightStyle = {
-  marginTop: 10,
-  padding: 12,
-  borderRadius: 10,
-  border: '1px solid #11333a',
-  background: '#061114',
-  color: '#9cf6ff',
-} as const
-
-const taskStyle = {
-  position: 'relative',
-  padding: 14,
-  marginBottom: 10,
-  border: '1px solid #222',
-  borderRadius: 12,
-  background: '#050505',
-} as const
-
-const smallDeleteButtonStyle = {
-  position: 'absolute',
-  top: 10,
-  right: 10,
-  background: '#ff3b3b',
-  border: 'none',
-  borderRadius: 6,
-  padding: '3px 7px',
-  cursor: 'pointer',
-  color: 'white',
-  fontSize: 11,
-} as const
+const appStyle = { display: 'grid', gridTemplateColumns: '320px 1fr', minHeight: '100vh', background: '#000', color: 'white', fontFamily: 'Arial, sans-serif' } as const
+const sidebarStyle = { borderRight: '1px solid #1f1f1f', background: '#050505', minHeight: '100vh', position: 'sticky', top: 0, overflowY: 'auto' } as const
+const mainStyle = { padding: 28, maxWidth: 1180 } as const
+const topBarStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, paddingBottom: 18, borderBottom: '1px solid #1f1f1f' } as const
+const groupTitleStyle = { color: '#777', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, padding: '8px 12px' } as const
+const sidebarButtonStyle = { width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', marginBottom: 3, border: '1px solid transparent', borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontWeight: 600 } as const
+const companySelectStyle = { width: '100%', padding: 11, borderRadius: 10, border: '1px solid #333', background: '#0a0a0a', color: 'white', outline: 'none' } as const
+const chatShellStyle = { maxWidth: 900, minHeight: 520, border: '1px solid #222', borderRadius: 18, background: '#050505', padding: 22, display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 } as const
+const assistantBubbleStyle = { alignSelf: 'flex-start', maxWidth: 720, padding: 16, borderRadius: 16, background: '#0d0d0d', border: '1px solid #222', color: '#e8e8e8' } as const
+const inputBarStyle = { marginTop: 'auto', borderTop: '1px solid #1f1f1f', paddingTop: 16 } as const
+const inputStyle = { display: 'block', marginBottom: 10, padding: 12, width: '100%', borderRadius: 8, border: '1px solid #333', background: '#111', color: 'white', outline: 'none' } as const
+const chatTextareaStyle = { display: 'block', marginBottom: 10, padding: 14, width: '100%', minHeight: 80, borderRadius: 12, border: '1px solid #333', background: '#111', color: 'white', outline: 'none', resize: 'vertical' } as const
+const buttonStyle = { width: '100%', padding: 12, cursor: 'pointer', background: '#00e5ff', color: '#000', border: 'none', borderRadius: 10, fontWeight: 'bold' } as const
+const secondaryButtonStyle = { marginTop: 10, padding: '7px 10px', cursor: 'pointer', background: '#111', color: 'white', border: '1px solid #333', borderRadius: 8 } as const
+const cardStyle = { marginBottom: 20, padding: 20, border: '1px solid #222', borderRadius: 14, background: '#0a0a0a' } as const
+const warningStyle = { marginBottom: 10, padding: 12, borderRadius: 10, border: '1px solid #332600', background: '#151000', color: '#ffcc66' } as const
+const insightStyle = { marginTop: 10, padding: 12, borderRadius: 10, border: '1px solid #11333a', background: '#061114', color: '#9cf6ff' } as const
+const workflowStyle = { padding: 14, borderRadius: 12, border: '1px solid #183b42', background: '#061114', color: '#9cf6ff', lineHeight: 1.6, marginBottom: 12 } as const
+const taskStyle = { position: 'relative', padding: 14, marginBottom: 10, border: '1px solid #222', borderRadius: 12, background: '#050505' } as const
+const smallDeleteButtonStyle = { position: 'absolute', top: 10, right: 10, background: '#ff3b3b', border: 'none', borderRadius: 6, padding: '3px 7px', cursor: 'pointer', color: 'white', fontSize: 11 } as const
