@@ -1,3 +1,6 @@
+Sara, paste this as full `app/page.tsx`:
+
+```tsx
 'use client'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
@@ -9,6 +12,7 @@ type Task = { id: string; company_id: string | null; title: string; assigned_to?
 type Employee = { id: string; company_id: string | null; name: string; hourly_cost: number; hours_worked: number; value_generated: number }
 type InventoryItem = { id: string; company_id: string | null; name: string; quantity: number; months_slow: number; discount: number }
 type Invoice = { id: string; company_id: string | null; client: string; amount: number; due_date?: string | null; status?: string | null }
+type ChatMessage = { id: string; role: 'user' | 'basal'; text: string; steps?: string[] }
 
 type ModuleKey =
   | 'command'
@@ -118,6 +122,7 @@ export default function Home() {
   const [stressAmount, setStressAmount] = useState('')
   const [chatText, setChatText] = useState('')
   const [companyMemory, setCompanyMemory] = useState<string[]>([])
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -204,6 +209,22 @@ export default function Home() {
     return Object.entries(map).map(([category, total]) => ({ category, total })).sort((a, b) => b.total - a.total)
   }, [filteredTransactions])
 
+  const biggestRisk = useMemo(() => {
+    if (netResult < 0) return 'Negative net result'
+    if (pendingInvoiceTotal > 0) return 'Cash locked in unpaid invoices'
+    if (highPriorityTasks.length > 0) return 'High-priority work not completed'
+    if (categoryTotals[0]) return `${categoryTotals[0].category} cost concentration`
+    return 'No major risk detected'
+  }, [netResult, pendingInvoiceTotal, highPriorityTasks.length, categoryTotals])
+
+  const operationalBottleneck = useMemo(() => {
+    const slowStock = filteredInventory.find(i => i.months_slow >= 3)
+    if (slowStock) return `${slowStock.name} is slow-moving inventory`
+    if (openTasks.length > 0) return `${openTasks.length} open task(s) waiting`
+    if (pendingInvoices.length > 0) return `${pendingInvoices.length} unpaid invoice(s)`
+    return 'No visible bottleneck'
+  }, [filteredInventory, openTasks.length, pendingInvoices.length])
+
   const warnings = useMemo(() => {
     const items: string[] = []
     if (netResult < 0) items.push(`Net result is negative: €${netResult}. Company is currently losing money.`)
@@ -271,6 +292,63 @@ export default function Home() {
 
     const title = text.replace(/dodaj task/gi, '').replace(/add task/gi, '').replace(/podseti/gi, '').replace(/remind/gi, '').trim()
     return { title: title || text, assignedTo: words[0] || '', dueDate, priority }
+  }
+
+  function addChat(role: 'user' | 'basal', text: string, steps?: string[]) {
+    setChatMessages(prev => [
+      ...prev,
+      {
+        id: `${role}-${Date.now()}-${Math.random()}`,
+        role,
+        text,
+        steps,
+      },
+    ])
+  }
+
+  function explainWarning(warning: string) {
+    if (warning.includes('negative')) {
+      return {
+        what: 'Company is losing money.',
+        why: 'Expenses are currently higher than income.',
+        impact: `Current net result is €${netResult}.`,
+        action: 'Review expenses and unpaid invoices.',
+      }
+    }
+
+    if (warning.includes('80%')) {
+      return {
+        what: 'Margin pressure is high.',
+        why: 'Expenses are consuming most of the income.',
+        impact: 'Profit buffer is too thin.',
+        action: 'Reduce costs or increase collections.',
+      }
+    }
+
+    if (warning.includes('priority')) {
+      return {
+        what: 'Important work is still open.',
+        why: 'High-priority tasks can block delivery or sales.',
+        impact: `${highPriorityTasks.length} urgent task(s) unresolved.`,
+        action: 'Assign ownership and close them today.',
+      }
+    }
+
+    if (warning.includes('Pending invoices')) {
+      return {
+        what: 'Cash is stuck in unpaid invoices.',
+        why: 'Revenue exists but has not become cash yet.',
+        impact: `€${pendingInvoiceTotal} pending.`,
+        action: 'Follow up or use Instant Cash.',
+      }
+    }
+
+    return {
+      what: warning,
+      why: 'BASAL detected this from current company data.',
+      impact: 'This may affect operations or cash flow.',
+      action: 'Review the related module.',
+    }
   }
 
   async function addCompany() {
@@ -406,6 +484,8 @@ export default function Home() {
     const text = command.trim()
     if (!text) return
 
+    addChat('user', text)
+
     const lower = text.toLowerCase()
     const amountMatch = text.match(/-?\d+(\.\d+)?/)
     const amount = amountMatch ? Math.abs(Number(amountMatch[0])) : 0
@@ -430,7 +510,7 @@ export default function Home() {
     if (looksLikeOrder) {
       const parsed = parseTaskCommand(`Order created: ${text}`)
 
-      await supabase.from('tasks').insert([
+      const { error } = await supabase.from('tasks').insert([
         {
           company_id: selectedCompany,
           title: `Check Inventory for order: ${text}`,
@@ -457,11 +537,27 @@ export default function Home() {
         },
       ])
 
-      setCompanyMemory(prev => [
-        `Order created → checks Inventory → if missing stock, creates Procurement request → if production needed, creates Manufacturing task → assigns employee → affects Cash Flow forecast → updates Customer/CRM status → stores documents → Command Center explains what changed. Order: ${text}`,
-        ...prev,
-      ])
+      if (error) {
+        setMessage('Greška pri order workflow-u: ' + error.message)
+        addChat('basal', 'Order workflow failed.', ['Database insert error', error.message])
+        return
+      }
 
+      const memory = `Order created: ${text}`
+      setCompanyMemory(prev => [memory, ...prev])
+
+      const steps = [
+        'Order created',
+        'Inventory check task created',
+        'Procurement request task created',
+        'Manufacturing planning task created',
+        'Employee assignment prepared',
+        'Cash flow impact flagged',
+        'CRM/customer status should be reviewed',
+        'Memory saved in Command Center',
+      ]
+
+      addChat('basal', 'Order workflow executed across the company nervous system.', steps)
       setMessage('Order workflow executed across Operations, People, Finance, Growth and Knowledge.')
       setChatText('')
       loadTasks()
@@ -481,6 +577,14 @@ export default function Home() {
       }])
 
       if (error) return setMessage('Greška pri unosu taska: ' + error.message)
+
+      addChat('basal', `Task created: ${p.title}`, [
+        'Task added',
+        `Assigned to: ${p.assignedTo || 'Unassigned'}`,
+        `Priority: ${p.priority}`,
+        `Due date: ${p.dueDate || 'No due date'}`,
+        'Timeline updated',
+      ])
 
       setMessage(`Task created: ${p.title}`)
       setChatText('')
@@ -525,6 +629,14 @@ export default function Home() {
 
       if (error) return setMessage('Greška pri unosu: ' + error.message)
 
+      addChat('basal', `Transaction added: ${type} €${amount}`, [
+        'Transaction added',
+        `Category detected: ${category}`,
+        'Cash position updated',
+        'Finance module updated',
+        'Timeline updated',
+      ])
+
       setMessage(`Dodato: ${type} €${amount} / ${category}`)
       setChatText('')
       loadTransactions()
@@ -532,8 +644,48 @@ export default function Home() {
     }
 
     setCompanyMemory(prev => [text, ...prev])
+    addChat('basal', 'Saved to Company Memory.', [
+      'Memory created',
+      'Knowledge module updated',
+      'This note can be used later for client, supplier, document or decision context',
+    ])
     setMessage('Saved to Company Memory.')
     setChatText('')
+  }
+
+  function answerQuickQuestion(question: string) {
+    addChat('user', question)
+
+    if (question.includes('biggest risk')) {
+      addChat('basal', `Biggest risk: ${biggestRisk}.`, [
+        `Net result: €${netResult}`,
+        `Open high-priority tasks: ${highPriorityTasks.length}`,
+        `Pending invoices: €${pendingInvoiceTotal}`,
+      ])
+      return
+    }
+
+    if (question.includes('Who is late')) {
+      const late = openTasks.filter(t => t.priority === 'high')
+      addChat('basal', late.length ? `${late.length} urgent task(s) need attention.` : 'No urgent delayed work detected.', late.map(t => `${t.assigned_to || 'Unassigned'} → ${t.title}`))
+      return
+    }
+
+    if (question.includes('€20,000')) {
+      const projected = netResult + pendingInvoiceTotal - 20000
+      addChat('basal', projected < 0 ? 'No. Do not buy a €20,000 asset now.' : 'Yes, the purchase may be possible after collections.', [
+        `Projected position after purchase: €${projected}`,
+        `Pending invoices included: €${pendingInvoiceTotal}`,
+      ])
+      return
+    }
+
+    if (question.includes('client')) {
+      addChat('basal', pendingInvoices.length ? 'Follow up with clients who have unpaid invoices first.' : 'No unpaid invoice follow-up detected. Focus on warm leads next.', pendingInvoices.map(i => `${i.client} → €${i.amount}`))
+      return
+    }
+
+    addChat('basal', 'Today’s company movement is summarized from transactions, tasks and memory.', recentActivity.map(a => `${a.label} — ${a.meta}`))
   }
 
   async function deleteTransaction(id: string) {
@@ -574,27 +726,114 @@ export default function Home() {
   }
 
   function CommandCenter() {
+    const quickQuestions = [
+      'What is the biggest risk today?',
+      'Who is late?',
+      'Can we afford a €20,000 purchase?',
+      'Which client should we follow up with?',
+      'What changed today?',
+    ]
+
     return (
       <>
         <HeaderMetrics />
+
+        <Panel title="State of the Company">
+          <div style={stateGridStyle}>
+            <div>
+              <div style={muted}>Financial state</div>
+              <div style={stateBigTextStyle}>{netResult >= 0 ? 'Stable / positive' : 'Negative pressure'}</div>
+            </div>
+            <div>
+              <div style={muted}>Net result</div>
+              <div style={{ ...stateBigTextStyle, color: netResult >= 0 ? '#00e5ff' : '#ff9800' }}>€{netResult}</div>
+            </div>
+            <div>
+              <div style={muted}>Biggest risk</div>
+              <div style={stateBigTextStyle}>{biggestRisk}</div>
+            </div>
+            <div>
+              <div style={muted}>Urgent tasks</div>
+              <div style={stateBigTextStyle}>{highPriorityTasks.length}</div>
+            </div>
+            <div>
+              <div style={muted}>Unpaid invoices</div>
+              <div style={stateBigTextStyle}>€{pendingInvoiceTotal}</div>
+            </div>
+            <div>
+              <div style={muted}>Operational bottleneck</div>
+              <div style={stateBigTextStyle}>{operationalBottleneck}</div>
+            </div>
+          </div>
+        </Panel>
 
         <div style={chatShellStyle}>
           <div style={assistantBubbleStyle}>
             <b>BASAL</b>
             <p style={{ marginBottom: 0 }}>
-              Send anything: expense, task, order, note, document summary, screenshot description, or operational instruction. I route it through the company nervous system.
+              I am the operating layer for {selectedCompanyData?.name}. Send expenses, tasks, orders, notes, document summaries, screenshots or voice-style instructions. I will route them through Finance, Operations, People, Growth and Knowledge.
             </p>
           </div>
 
-          {warnings.map((w, i) => (
-            <div key={i} style={warningStyle}>⚠️ {w}</div>
-          ))}
+          <div style={uploadRowStyle}>
+            <button onClick={() => setMessage('Upload placeholder ready: later this will accept invoices, PDFs and documents.')} style={ghostButtonStyle}>＋ Document</button>
+            <button onClick={() => setMessage('Screenshot placeholder ready: later BASAL will read operational screenshots.')} style={ghostButtonStyle}>▧ Screenshot</button>
+            <button onClick={() => setMessage('Voice placeholder ready: later BASAL will use voice-to-action.')} style={ghostButtonStyle}>● Voice note</button>
+          </div>
+
+          <div style={chipsRowStyle}>
+            {quickQuestions.map(q => (
+              <button key={q} onClick={() => answerQuickQuestion(q)} style={chipStyle}>
+                {q}
+              </button>
+            ))}
+          </div>
+
+          {warnings.map((w, i) => {
+            const detail = explainWarning(w)
+            return (
+              <div key={i} style={activeWarningStyle}>
+                <div style={{ fontWeight: 800, marginBottom: 8 }}>⚠️ {detail.what}</div>
+                <div style={warningGridStyle}>
+                  <div><b>Why:</b> {detail.why}</div>
+                  <div><b>Impact:</b> {detail.impact}</div>
+                  <div><b>Recommended action:</b> {detail.action}</div>
+                </div>
+                <div style={actionRowStyle}>
+                  <button style={miniActionButtonStyle} onClick={() => answerQuickQuestion('What is the biggest risk today?')}>Analyze</button>
+                  <button style={miniActionButtonStyle} onClick={() => setActiveModule('tasks')}>Assign task</button>
+                  <button style={miniActionButtonStyle} onClick={() => setActiveModule('cashflow')}>Reduce cost</button>
+                  <button style={miniActionButtonStyle} onClick={() => setActiveModule('crm')}>Follow up</button>
+                </div>
+              </div>
+            )
+          })}
 
           <div style={workflowStyle}>
             <b>Cross-functional workflow</b>
             <div>
               Order created → checks Inventory → if missing stock, creates Procurement request → if production needed, creates Manufacturing task → assigns employee → affects Cash Flow forecast → updates Customer/CRM status → stores documents → Command Center explains what changed.
             </div>
+          </div>
+
+          <div style={chatHistoryStyle}>
+            {chatMessages.length === 0 ? (
+              <div style={muted}>No conversation yet. Start by typing: “platila 300 za marketing” or “order 20 tables for Hotel Palace”.</div>
+            ) : (
+              chatMessages.map(msg => (
+                <div key={msg.id} style={msg.role === 'user' ? userBubbleStyle : systemResponseStyle}>
+                  <b>{msg.role === 'user' ? 'You' : 'BASAL'}</b>
+                  <div style={{ marginTop: 6 }}>{msg.text}</div>
+                  {msg.steps && msg.steps.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      {msg.steps.map(step => (
+                        <div key={step} style={stepStyle}>→ {step}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
 
           <div style={inputBarStyle}>
@@ -614,7 +853,7 @@ export default function Home() {
           </div>
         </div>
 
-        <Panel title="Company timeline">
+        <Panel title="Live Company Timeline">
           {recentActivity.length === 0 ? (
             <div style={muted}>No activity yet.</div>
           ) : recentActivity.map(item => (
@@ -908,8 +1147,8 @@ const topBarStyle = { display: 'flex', justifyContent: 'space-between', alignIte
 const groupTitleStyle = { color: '#777', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, padding: '8px 12px' } as const
 const sidebarButtonStyle = { width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', marginBottom: 3, border: '1px solid transparent', borderRadius: 10, cursor: 'pointer', textAlign: 'left', fontWeight: 600 } as const
 const companySelectStyle = { width: '100%', padding: 11, borderRadius: 10, border: '1px solid #333', background: '#0a0a0a', color: 'white', outline: 'none' } as const
-const chatShellStyle = { maxWidth: 900, minHeight: 520, border: '1px solid #222', borderRadius: 18, background: '#050505', padding: 22, display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 } as const
-const assistantBubbleStyle = { alignSelf: 'flex-start', maxWidth: 720, padding: 16, borderRadius: 16, background: '#0d0d0d', border: '1px solid #222', color: '#e8e8e8' } as const
+const chatShellStyle = { maxWidth: 900, minHeight: 620, border: '1px solid #222', borderRadius: 18, background: '#050505', padding: 22, display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 } as const
+const assistantBubbleStyle = { alignSelf: 'flex-start', maxWidth: 760, padding: 16, borderRadius: 16, background: '#0d0d0d', border: '1px solid #222', color: '#e8e8e8' } as const
 const inputBarStyle = { marginTop: 'auto', borderTop: '1px solid #1f1f1f', paddingTop: 16 } as const
 const inputStyle = { display: 'block', marginBottom: 10, padding: 12, width: '100%', borderRadius: 8, border: '1px solid #333', background: '#111', color: 'white', outline: 'none' } as const
 const chatTextareaStyle = { display: 'block', marginBottom: 10, padding: 14, width: '100%', minHeight: 80, borderRadius: 12, border: '1px solid #333', background: '#111', color: 'white', outline: 'none', resize: 'vertical' } as const
@@ -917,7 +1156,22 @@ const buttonStyle = { width: '100%', padding: 12, cursor: 'pointer', background:
 const secondaryButtonStyle = { marginTop: 10, padding: '7px 10px', cursor: 'pointer', background: '#111', color: 'white', border: '1px solid #333', borderRadius: 8 } as const
 const cardStyle = { marginBottom: 20, padding: 20, border: '1px solid #222', borderRadius: 14, background: '#0a0a0a' } as const
 const warningStyle = { marginBottom: 10, padding: 12, borderRadius: 10, border: '1px solid #332600', background: '#151000', color: '#ffcc66' } as const
+const activeWarningStyle = { marginBottom: 10, padding: 14, borderRadius: 14, border: '1px solid #332600', background: '#151000', color: '#ffcc66' } as const
+const warningGridStyle = { display: 'grid', gap: 6, color: '#f4d58a', fontSize: 14, lineHeight: 1.45 } as const
+const actionRowStyle = { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 } as const
+const miniActionButtonStyle = { padding: '7px 10px', borderRadius: 999, border: '1px solid #4a3900', background: '#0d0a00', color: '#ffcc66', cursor: 'pointer', fontWeight: 700 } as const
 const insightStyle = { marginTop: 10, padding: 12, borderRadius: 10, border: '1px solid #11333a', background: '#061114', color: '#9cf6ff' } as const
 const workflowStyle = { padding: 14, borderRadius: 12, border: '1px solid #183b42', background: '#061114', color: '#9cf6ff', lineHeight: 1.6, marginBottom: 12 } as const
 const taskStyle = { position: 'relative', padding: 14, marginBottom: 10, border: '1px solid #222', borderRadius: 12, background: '#050505' } as const
 const smallDeleteButtonStyle = { position: 'absolute', top: 10, right: 10, background: '#ff3b3b', border: 'none', borderRadius: 6, padding: '3px 7px', cursor: 'pointer', color: 'white', fontSize: 11 } as const
+const stateGridStyle = { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(160px, 1fr))', gap: 14 } as const
+const stateBigTextStyle = { marginTop: 6, fontSize: 18, fontWeight: 800, color: '#f2f2f2' } as const
+const uploadRowStyle = { display: 'flex', gap: 10, flexWrap: 'wrap' } as const
+const ghostButtonStyle = { padding: '9px 12px', borderRadius: 999, border: '1px solid #333', background: '#0b0b0b', color: '#cfcfcf', cursor: 'pointer', fontWeight: 700 } as const
+const chipsRowStyle = { display: 'flex', gap: 8, flexWrap: 'wrap' } as const
+const chipStyle = { padding: '8px 11px', borderRadius: 999, border: '1px solid #183b42', background: '#061114', color: '#9cf6ff', cursor: 'pointer', fontWeight: 700 } as const
+const chatHistoryStyle = { display: 'flex', flexDirection: 'column', gap: 10, minHeight: 120 } as const
+const userBubbleStyle = { alignSelf: 'flex-end', maxWidth: 720, padding: 14, borderRadius: 16, background: '#10161a', border: '1px solid #183b42', color: 'white' } as const
+const systemResponseStyle = { alignSelf: 'flex-start', maxWidth: 760, padding: 14, borderRadius: 16, background: '#0d0d0d', border: '1px solid #222', color: '#e8e8e8' } as const
+const stepStyle = { color: '#9cf6ff', fontSize: 14, marginTop: 4 } as const
+```
